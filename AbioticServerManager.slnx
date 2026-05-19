@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AbioticServerManager.App/AbioticServerManager.App.csproj" />
+    <Project Path="src/AbioticServerManager.Core/AbioticServerManager.Core.csproj" />
+    <Project Path="src/AbioticServerManager.Infrastructure/AbioticServerManager.Infrastructure.csproj" />
+    <Project Path="src/AbioticServerManager.Tests/AbioticServerManager.Tests.csproj" />
+  </Folder>
+</Solution>

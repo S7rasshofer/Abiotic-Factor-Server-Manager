@@ -1,0 +1,9 @@
+<UserControl x:Class="AbioticServerManager.App.PlaceholderPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root">
+    <StackPanel Margin="24" VerticalAlignment="Top">
+        <TextBlock Text="{Binding Title, ElementName=Root}" Style="{StaticResource HeaderText}" />
+        <TextBlock Text="{Binding Note, ElementName=Root}" Style="{StaticResource MutedText}" MaxWidth="520" HorizontalAlignment="Left" />
+    </StackPanel>
+</UserControl>

@@ -1,0 +1,486 @@
+{
+  "SandboxSettings": {
+    "GameDifficulty": {
+      "displayName": "Game Difficulty",
+      "category": "World",
+      "type": "enum",
+      "default": "1",
+      "options": [
+        "1",
+        "2",
+        "3"
+      ],
+      "optionLabels": [
+        "Normal",
+        "Hard",
+        "Apocalyptic"
+      ],
+      "description": "Overall world difficulty."
+    },
+    "HardcoreMode": {
+      "displayName": "Hardcore Mode",
+      "category": "World",
+      "type": "boolean",
+      "default": "False",
+      "description": "When enabled, characters have one life and difficulty is forced to Apocalyptic.",
+      "warning": "Hardcore changes can be irreversible for a save."
+    },
+    "LootRespawnEnabled": {
+      "displayName": "Loot Respawn",
+      "category": "World",
+      "type": "boolean",
+      "default": "False",
+      "description": "Allows resources to spontaneously respawn around the facility."
+    },
+    "PowerSocketsOffAtNight": {
+      "displayName": "Power Off At Night",
+      "category": "World",
+      "type": "boolean",
+      "default": "True",
+      "description": "Turns facility power sockets off during night hours."
+    },
+    "DayNightCycleState": {
+      "displayName": "Day / Night Cycle",
+      "category": "World",
+      "type": "enum",
+      "default": "0",
+      "options": [
+        "0",
+        "1",
+        "2"
+      ],
+      "optionLabels": [
+        "Normal",
+        "Always Day",
+        "Always Night"
+      ],
+      "description": "Controls the day/night cycle."
+    },
+    "DayNightCycleSpeedMultiplier": {
+      "displayName": "Day / Night Speed",
+      "category": "World",
+      "type": "number",
+      "min": 0.1,
+      "max": 3.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Multiplies how fast clock time passes for the day/night cycle."
+    },
+    "WeatherFrequency": {
+      "displayName": "Weather Frequency",
+      "category": "World",
+      "type": "enum",
+      "default": "3",
+      "options": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "optionLabels": [
+        "Never",
+        "Infrequent",
+        "Normal",
+        "Frequent",
+        "Daily"
+      ],
+      "description": "Controls how often weather events occur."
+    },
+    "SinkRefillRate": {
+      "displayName": "Sink Refill Rate",
+      "category": "World",
+      "type": "number",
+      "min": 0.0,
+      "max": 10.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Controls how quickly sinks refill over time. A value of 0 disables sink refill."
+    },
+    "FoodSpoilSpeedMultiplier": {
+      "displayName": "Food Spoil Speed",
+      "category": "World",
+      "type": "number",
+      "min": 0.0,
+      "max": 2.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Multiplies how quickly food spoils. A value of 0 stops food spoilage."
+    },
+    "RefrigerationEffectivenessMultiplier": {
+      "displayName": "Refrigeration Effectiveness",
+      "category": "World",
+      "type": "number",
+      "min": 0.0,
+      "max": 2.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Multiplies how effective refrigeration is at preserving items."
+    },
+    "StorageByTag": {
+      "displayName": "Storage By Item Type",
+      "category": "World",
+      "type": "boolean",
+      "default": "True",
+      "description": "Restricts specialized containers to compatible item types."
+    },
+    "StructuralSupportLimit": {
+      "displayName": "Structural Support Limit",
+      "category": "World",
+      "type": "number",
+      "min": 0.0,
+      "step": 1.0,
+      "default": "5",
+      "description": "Controls deployable stacking support. A value of 0 removes the support requirement."
+    },
+    "BridgeSupports": {
+      "displayName": "Bridge Supports",
+      "category": "World",
+      "type": "enum",
+      "default": "2",
+      "options": [
+        "0",
+        "1",
+        "2"
+      ],
+      "optionLabels": [
+        "None",
+        "One support",
+        "Two supports"
+      ],
+      "description": "Controls bridge support requirements."
+    },
+    "HomeWorlds": {
+      "displayName": "Home Worlds",
+      "category": "World",
+      "type": "boolean",
+      "default": "True",
+      "description": "Allows players to access Home World portal worlds."
+    },
+    "InvisibleRadiation": {
+      "displayName": "Invisible Radiation",
+      "category": "World",
+      "type": "boolean",
+      "default": "False",
+      "description": "Hides radiation screen effects, requiring players to track radiation with Geiger Counters."
+    },
+    "TaintedSinkWater": {
+      "displayName": "Tainted Sink Water",
+      "category": "World",
+      "type": "boolean",
+      "default": "False",
+      "description": "Makes normally clean sink water sources provide tainted water instead."
+    },
+    "RadiationDealsDamage": {
+      "displayName": "Radiation Deals Damage",
+      "category": "World",
+      "type": "boolean",
+      "default": "False",
+      "description": "Makes radiation actively damage player health."
+    },
+    "EnemySpawnRate": {
+      "displayName": "Enemy Spawn Rate",
+      "category": "Enemy",
+      "type": "number",
+      "min": 0.5,
+      "max": 3.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Controls how frequently enemies respawn.",
+      "warning": "Higher values can make worlds significantly harder."
+    },
+    "EnemyHealthMultiplier": {
+      "displayName": "Enemy Health Multiplier",
+      "category": "Enemy",
+      "type": "number",
+      "min": 0.75,
+      "max": 3.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Multiplies enemy health."
+    },
+    "EnemyPlayerDamageMultiplier": {
+      "displayName": "Enemy Player Damage",
+      "category": "Enemy",
+      "type": "number",
+      "min": 0.25,
+      "max": 3.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Multiplies how much damage enemies deal to players."
+    },
+    "EnemyDeployableDamageMultiplier": {
+      "displayName": "Enemy Deployable Damage",
+      "category": "Enemy",
+      "type": "number",
+      "min": 0.1,
+      "max": 5.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Multiplies how much damage enemies deal to deployables and structures."
+    },
+    "DetectionSpeedMultiplier": {
+      "displayName": "Detection Speed",
+      "category": "Enemy",
+      "type": "number",
+      "min": 0.1,
+      "max": 3.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Multiplies how quickly enemies detect players."
+    },
+    "EnemyAccuracy": {
+      "displayName": "Enemy Accuracy",
+      "category": "Enemy",
+      "type": "enum",
+      "default": "2",
+      "options": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4"
+      ],
+      "optionLabels": [
+        "Pathetic",
+        "Low",
+        "Default",
+        "High",
+        "Precise"
+      ],
+      "description": "Controls enemy shot accuracy."
+    },
+    "DamageToAlliesMultiplier": {
+      "displayName": "Friendly Fire Damage",
+      "category": "Player",
+      "type": "number",
+      "min": 0.0,
+      "max": 3.0,
+      "step": 0.05,
+      "default": "0.50",
+      "description": "Multiplies how much damage players deal to other players."
+    },
+    "HungerSpeedMultiplier": {
+      "displayName": "Hunger Speed",
+      "category": "Player",
+      "type": "number",
+      "min": 0.0,
+      "max": 2.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Multiplies how quickly hunger increases. A value of 0 disables hunger."
+    },
+    "ThirstSpeedMultiplier": {
+      "displayName": "Thirst Speed",
+      "category": "Player",
+      "type": "number",
+      "min": 0.0,
+      "max": 2.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Multiplies how quickly thirst increases. A value of 0 disables thirst."
+    },
+    "FatigueSpeedMultiplier": {
+      "displayName": "Fatigue Speed",
+      "category": "Player",
+      "type": "number",
+      "min": 0.0,
+      "max": 2.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Multiplies how quickly fatigue increases."
+    },
+    "ContinenceSpeedMultiplier": {
+      "displayName": "Continence Speed",
+      "category": "Player",
+      "type": "number",
+      "min": 0.0,
+      "max": 2.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Multiplies how quickly the toilet need drains."
+    },
+    "BonusPerkPoints": {
+      "displayName": "Bonus Perk Points",
+      "category": "Player",
+      "type": "number",
+      "min": -20.0,
+      "max": 50.0,
+      "step": 1.0,
+      "default": "0",
+      "description": "Adds or removes available perk points on top of the points from the selected job."
+    },
+    "PlayerXPGainMultiplier": {
+      "displayName": "Player XP Gain",
+      "category": "Player",
+      "type": "number",
+      "min": 0.0,
+      "max": 3.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Multiplies how quickly players gain skill XP. A value of 0 disables skill leveling."
+    },
+    "ItemStackSizeMultiplier": {
+      "displayName": "Item Stack Size",
+      "category": "Player",
+      "type": "number",
+      "min": 1.0,
+      "max": 30.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Multiplies stack size for stackable inventory items."
+    },
+    "ItemWeightMultiplier": {
+      "displayName": "Item Weight",
+      "category": "Player",
+      "type": "number",
+      "min": 0.0,
+      "max": 5.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Multiplies inventory item weight. A value of 0 makes items weightless."
+    },
+    "ItemDurabilityMultiplier": {
+      "displayName": "Item Durability",
+      "category": "Player",
+      "type": "number",
+      "min": 0.1,
+      "max": 10.0,
+      "step": 0.1,
+      "default": "1.0",
+      "description": "Multiplies item durability."
+    },
+    "DurabilityLossOnDeathMultiplier": {
+      "displayName": "Durability Loss On Death",
+      "category": "Player",
+      "type": "number",
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.01,
+      "default": "0.10",
+      "description": "Controls how much durability equipment loses when a player respawns."
+    },
+    "ShowDeathMessages": {
+      "displayName": "Show Death Messages",
+      "category": "Player",
+      "type": "boolean",
+      "default": "True",
+      "description": "Shows chat notifications when players die."
+    },
+    "AllowRecipeSharing": {
+      "displayName": "Allow Recipe Sharing",
+      "category": "Player",
+      "type": "boolean",
+      "default": "True",
+      "description": "Allows players to share item recipes with other players."
+    },
+    "AllowPagers": {
+      "displayName": "Allow Pagers",
+      "category": "Player",
+      "type": "boolean",
+      "default": "True",
+      "description": "Allows players to use pagers from inventory or the emote wheel."
+    },
+    "AllowTransmog": {
+      "displayName": "Allow Transmog",
+      "category": "Player",
+      "type": "boolean",
+      "default": "True",
+      "description": "Allows players to transmogrify armor appearance."
+    },
+    "DisableResearchMinigame": {
+      "displayName": "Disable Research Minigame",
+      "category": "Player",
+      "type": "boolean",
+      "default": "False",
+      "description": "Skips research minigames and unlocks recipes immediately."
+    },
+    "DeathPenalties": {
+      "displayName": "Death Penalties",
+      "category": "Player",
+      "type": "enum",
+      "default": "1",
+      "options": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "optionLabels": [
+        "Keep all items",
+        "Keep equipped items and hotbar",
+        "Keep hotbar only",
+        "Keep equipped items only",
+        "Lose all items",
+        "All items destroyed"
+      ],
+      "description": "Controls how much of a player's inventory is lost on death."
+    },
+    "FirstTimeStartingWeapon": {
+      "displayName": "First-Time Starting Weapon",
+      "category": "Player",
+      "type": "enum",
+      "default": "0",
+      "options": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6"
+      ],
+      "optionLabels": [
+        "None",
+        "Shiv",
+        "Desk Leg",
+        "Kitchen Knife",
+        "Starter Baton",
+        "Pipe Club",
+        "Random"
+      ],
+      "description": "Controls the weapon a player spawns with the first time."
+    },
+    "HostAccessPlayerCorpses": {
+      "displayName": "Host Access Player Corpses",
+      "category": "Player",
+      "type": "boolean",
+      "default": "True",
+      "description": "Allows the host to access player death bags."
+    },
+    "AllowCharacterReset": {
+      "displayName": "Allow Character Reset",
+      "category": "Player",
+      "type": "boolean",
+      "default": "True",
+      "description": "Allows players to reset jobs, skills, and traits later in the game."
+    },
+    "BaseInventorySize": {
+      "displayName": "Base Inventory Size",
+      "category": "Player",
+      "type": "number",
+      "min": 0.0,
+      "max": 42.0,
+      "step": 1.0,
+      "default": "12",
+      "description": "Sets default inventory slots when no backpack is equipped."
+    },
+    "PlayerFurnitureDestruction": {
+      "displayName": "Player Furniture Destruction",
+      "category": "Player",
+      "type": "boolean",
+      "default": "False",
+      "description": "Destroys player-built furniture at zero durability instead of packaging it."
+    },
+    "AllowIronMode": {
+      "displayName": "Allow Iron Mode",
+      "category": "Player",
+      "type": "boolean",
+      "default": "True",
+      "description": "Allows the Iron Mode starting job when Hardcore Mode is enabled.",
+      "warning": "This setting only applies when Hardcore Mode is enabled."
+    }
+  }
+}

@@ -1,0 +1,50 @@
+# Facility Overseer - .gitignore
+# Keep only what a GitHub repo / distribution needs: source, solution,
+# build props, docs/, and tools/ scripts. Everything generated is ignored.
+
+# ---- App runtime data (generated; never source) -------------------------
+# The managed data root, wherever it lands (beside the exe or %LOCALAPPDATA%).
+FacilityOverseerData/
+
+# ---- Build output -------------------------------------------------------
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+# Published single-file exe + the off-OneDrive staging dir (built artifacts,
+# distributed via releases/CI, not committed).
+publish/
+publish-stage/
+*.publish.log
+publish/publish-hook.log
+
+# ---- .NET / build intermediates ----------------------------------------
+project.lock.json
+project.assets.json
+*.nuget.props
+*.nuget.targets
+*.binlog
+artifacts/
+[Ll]og/
+[Ll]ogs/
+
+# ---- IDE / editor -------------------------------------------------------
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userprefs
+*.DotSettings.user
+
+# ---- Claude Code: keep shared project hook config, ignore local/cache ---
+.claude/settings.local.json
+.claude/**/cache/
+.claude/projects/
+
+# ---- OS noise -----------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+*.tmp
+*.swp
