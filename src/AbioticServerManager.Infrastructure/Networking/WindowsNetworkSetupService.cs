@@ -31,6 +31,9 @@ public sealed class WindowsNetworkSetupService : INetworkSetupService
         _logger = logger;
     }
 
+    public Ipv4SelectionResult DetectLanIpv4() =>
+        Ipv4Selection.Select(GatherCandidates());
+
     public async Task<NetworkSetupStatus> InspectAsync(
         ServerInstance instance,
         CancellationToken ct = default)

@@ -37,6 +37,82 @@ public class AppPathsTests
     }
 
     [Theory]
+    [InlineData(true)]   // exe folder is writable; saved choice still wins
+    [InlineData(false)]
+    public void Saved_choice_wins_over_auto_detect(bool appDirectoryWritable)
+    {
+        var savedChoice = Path.Combine(Path.GetTempPath(), "fo-user-picked-this");
+        var appBase = Path.Combine(Path.GetTempPath(), "fo-app");
+        var local = Path.Combine(Path.GetTempPath(), "fo-local");
+
+        var resolved = AppPaths.ResolveDataRoot(savedChoice, appBase, local, appDirectoryWritable);
+
+        Assert.Equal(Path.GetFullPath(savedChoice), resolved);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Missing_or_blank_saved_choice_falls_back_to_auto_detect(string? savedChoice)
+    {
+        var appBase = Path.Combine(Path.GetTempPath(), "fo-app");
+        var local = Path.Combine(Path.GetTempPath(), "fo-local");
+
+        var resolved = AppPaths.ResolveDataRoot(savedChoice, appBase, local, appDirectoryWritable: true);
+
+        Assert.Equal(Path.Combine(appBase, "FacilityOverseerData"), resolved);
+    }
+
+    [Fact]
+    public void Data_root_choice_file_round_trips()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "fo-choice-" + Guid.NewGuid().ToString("N"));
+        var file = Path.Combine(dir, "data-root.txt");
+        var chosen = Path.Combine(Path.GetTempPath(), "fo-user-picked");
+        try
+        {
+            Assert.Null(DataRootChoiceFile.TryLoad(file));
+
+            Assert.True(DataRootChoiceFile.TrySave(chosen, file));
+            Assert.Equal(chosen, DataRootChoiceFile.TryLoad(file));
+
+            // Re-saving overwrites cleanly (no append).
+            var second = Path.Combine(Path.GetTempPath(), "fo-user-changed-their-mind");
+            Assert.True(DataRootChoiceFile.TrySave(second, file));
+            Assert.Equal(second, DataRootChoiceFile.TryLoad(file));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Data_root_choice_file_treats_blank_content_as_no_choice()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "fo-choice-" + Guid.NewGuid().ToString("N"));
+        var file = Path.Combine(dir, "data-root.txt");
+        try
+        {
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(file, "   \r\n  ");
+
+            Assert.Null(DataRootChoiceFile.TryLoad(file));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+        }
+    }
+
+    [Theory]
     [InlineData(@"C:\Users\bob\OneDrive\Documents\App", true)]
     [InlineData(@"C:\Users\bob\OneDrive - Contoso\App", true)]
     [InlineData(@"C:\Users\bob\Dropbox\App", true)]

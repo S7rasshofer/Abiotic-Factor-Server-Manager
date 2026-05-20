@@ -24,6 +24,10 @@ public sealed partial class MainViewModel : ObservableObject
 {
     private readonly IInstanceStore _store;
     private readonly IPlayerRosterStore _rosterStore;
+    private readonly IInternalIpSnapshotStore _ipSnapshots;
+    private readonly IPublicIpProbe _publicIpProbe;
+    private readonly IResetManagedDataService _resetManagedData;
+    private readonly IWorldIdentityMigrationService _worldIdentityMigration;
     private readonly ILegacyMigrationService _migration;
     private readonly IDiagnosticsService _diagnostics;
     private readonly INetworkSetupService _networkSetup;
@@ -51,6 +55,10 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(
         IInstanceStore store,
         IPlayerRosterStore rosterStore,
+        IInternalIpSnapshotStore ipSnapshots,
+        IPublicIpProbe publicIpProbe,
+        IResetManagedDataService resetManagedData,
+        IWorldIdentityMigrationService worldIdentityMigration,
         ILegacyMigrationService migration,
         IDiagnosticsService diagnostics,
         INetworkSetupService networkSetup,
@@ -66,6 +74,10 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _store = store;
         _rosterStore = rosterStore;
+        _ipSnapshots = ipSnapshots;
+        _publicIpProbe = publicIpProbe;
+        _resetManagedData = resetManagedData;
+        _worldIdentityMigration = worldIdentityMigration;
         _migration = migration;
         _diagnostics = diagnostics;
         _networkSetup = networkSetup;
@@ -182,14 +194,153 @@ public sealed partial class MainViewModel : ObservableObject
         BusyIsIndeterminate = true;
     }
 
+    /// <summary>
+    /// Empty when the LAN IPv4 has not changed since the last launch (or this is
+    /// the first run). Populated with a single warning sentence when it HAS
+    /// changed — port forwarding may need attention.
+    /// </summary>
+    [ObservableProperty]
+    private string _internalIpChangeBannerText = "";
+
+    public bool HasInternalIpChangeBanner => !string.IsNullOrEmpty(InternalIpChangeBannerText);
+
+    partial void OnInternalIpChangeBannerTextChanged(string value) =>
+        OnPropertyChanged(nameof(HasInternalIpChangeBanner));
+
+    [RelayCommand]
+    private void DismissInternalIpChangeBanner() => InternalIpChangeBannerText = "";
+
+    /// <summary>This PC's current best LAN IPv4 (the address friends on the LAN reach).</summary>
+    [ObservableProperty]
+    private string _lanIpv4 = "—";
+
+    /// <summary>This PC's public IPv4 (what friends on the internet reach via port forwarding).</summary>
+    [ObservableProperty]
+    private string _publicIpv4 = "checking…";
+
+    [RelayCommand]
+    private async Task RefreshPublicIpAsync()
+    {
+        PublicIpv4 = "checking…";
+        try
+        {
+            var probed = await _publicIpProbe.ProbeAsync();
+            PublicIpv4 = string.IsNullOrEmpty(probed) ? "unavailable" : probed;
+        }
+        catch
+        {
+            PublicIpv4 = "unavailable";
+        }
+    }
+
+    /// <summary>
+    /// Erases everything Facility Overseer manages — both the durable
+    /// <c>DataRoot</c> tree AND the volatile SteamCMD/server tree — in one
+    /// confirmed action. The data-root choice is preserved so the user keeps
+    /// the location they picked on first run.
+    /// </summary>
+    [RelayCommand]
+    private async Task ResetManagedDataAsync()
+    {
+        if (Worlds.Any(w => w.IsRunningState))
+        {
+            MessageBox.Show(
+                "Stop all running worlds before resetting managed data.",
+                "Facility Overseer — Reset Managed Data",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var confirm = MessageBox.Show(
+            "This deletes EVERYTHING Facility Overseer manages:\n" +
+            "  • All world profiles, sandbox settings, admins, bans, roster\n" +
+            "  • Backups\n" +
+            "  • SteamCMD and the dedicated server install\n" +
+            "  • Logs\n\n" +
+            $"DataRoot:     {_paths.DataRoot}\n" +
+            "Anything outside these managed folders is left alone.\n\n" +
+            "Your data-root choice (where the new clean state will live) is " +
+            "preserved.\n\nProceed?",
+            "Facility Overseer — Reset Everything Managed",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await _resetManagedData.ResetAsync();
+
+            // Clear in-memory world state so the UI matches disk after reset.
+            Worlds.Clear();
+            SelectedWorld = null;
+
+            var summary = result.Success
+                ? $"Removed {result.RemovedPaths.Count} item(s)."
+                : $"Removed {result.RemovedPaths.Count} item(s); " +
+                  $"{result.FailedPaths.Count} could not be removed (locked or in use).";
+
+            MessageBox.Show(
+                summary + "\n\nReport saved to:\n" + result.ReportPath +
+                "\n\nRestart Facility Overseer to start fresh.",
+                "Facility Overseer — Reset Managed Data",
+                MessageBoxButton.OK,
+                result.Success ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Reset managed data failed");
+            MessageBox.Show(
+                "The reset could not complete:\n\n" + ex.Message,
+                "Facility Overseer — Reset Managed Data",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
     public async Task InitializeAsync()
     {
         await MaybeMigrateLegacyDataAsync();
+        await DetectInternalIpChangeAsync();
+        _ = ProbePublicIpInBackgroundAsync(); // best-effort; do not block startup
 
         var loaded = await _store.LoadAsync();
+        var migratedAny = false;
         foreach (var model in loaded)
         {
+            // §2.1: ensure per-world INIs are under <DataRoot>/worlds/<id>/config/
+            // before any downstream service (sandbox load, admin list, launch args)
+            // reads from instance.SandboxIniPath / AdminIniPath.
+            var migration = await _worldIdentityMigration.MigrateIfNeededAsync(model);
+            if (migration.HadWork)
+            {
+                migratedAny = true;
+                _logger.LogInformation(
+                    "§2.1 migration for world {Id}: copied {Count} file(s)",
+                    model.Id,
+                    migration.CopiedDescriptions.Count);
+            }
+
             Worlds.Add(CreateWorldVm(model));
+        }
+
+        if (migratedAny)
+        {
+            // Persist updated SandboxIniPath / AdminIniPath so the new layout
+            // sticks across launches.
+            try
+            {
+                await _store.SaveAsync([.. loaded]);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not persist §2.1 migration path updates");
+            }
         }
 
         if (Worlds.Count == 0)
@@ -250,6 +401,58 @@ public sealed partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Legacy migration check failed");
+        }
+    }
+
+    private async Task DetectInternalIpChangeAsync()
+    {
+        try
+        {
+            var selection = _networkSetup.DetectLanIpv4();
+            var current = selection.Best;
+            LanIpv4 = string.IsNullOrEmpty(current) ? "—" : current;
+
+            var lastSeen = await _ipSnapshots.LoadAsync();
+            var change = InternalIpChangeTracker.Detect(lastSeen, current);
+
+            InternalIpChangeBannerText = change switch
+            {
+                InternalIpChange.Changed =>
+                    $"Your LAN IPv4 changed from {lastSeen!.Ipv4} to {current}. If you " +
+                    "have router port forwarding pinned to the old address, friends may " +
+                    "no longer be able to join. Re-check the Network tab.",
+                InternalIpChange.Lost when lastSeen is not null =>
+                    $"No LAN IPv4 detected (last seen {lastSeen.Ipv4}). Reconnect to your " +
+                    "network and re-check the Network tab.",
+                _ => "",
+            };
+
+            // Only refresh the snapshot when we actually have a current IP — never
+            // clobber a known-good last-seen with a transient nothing.
+            var snapshot = InternalIpChangeTracker.SnapshotFor(current, DateTimeOffset.UtcNow);
+            if (snapshot is not null)
+            {
+                await _ipSnapshots.SaveAsync(snapshot);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Detection is best-effort UX; never block startup on it.
+            _logger.LogWarning(ex, "Internal IP change detection failed");
+        }
+    }
+
+    private async Task ProbePublicIpInBackgroundAsync()
+    {
+        try
+        {
+            var probed = await _publicIpProbe.ProbeAsync();
+            PublicIpv4 = string.IsNullOrEmpty(probed) ? "unavailable" : probed;
+        }
+        catch (Exception ex)
+        {
+            PublicIpv4 = "unavailable";
+            _logger.LogDebug(ex, "Initial public-IP probe failed (best-effort)");
         }
     }
 
@@ -1052,11 +1255,18 @@ public sealed partial class MainViewModel : ObservableObject
                 world.AdminIniPath = path;
             }
 
+            var moderators = _adminList.Load(path);
             world.Admins.Clear();
-            foreach (var id in _adminList.Load(path))
+            foreach (var id in moderators)
             {
                 world.Admins.Add(id);
             }
+
+            // §3.2/§3.3 — push the moderator + banned id sets into the world VM so
+            // the roster gets its admin marker and banned ids never leak into
+            // the live roster collection.
+            var bans = _bans.ListBans(world.Model);
+            world.UpdateModerationLists(moderators, bans);
 
             world.AdminStatusText = world.Admins.Count == 0
                 ? "No admins yet. Add a player's SteamID64 (17 digits) below."
@@ -1382,14 +1592,17 @@ public sealed partial class MainViewModel : ObservableObject
     private async Task BanSelectedPlayer()
     {
         var world = SelectedWorld;
-        var player = world?.SelectedRosterPlayer;
-        if (world is null || player is null)
+        var row = world?.SelectedRosterPlayer;
+        if (world is null || row is null)
         {
             MessageBox.Show(
                 "Select a player in the roster first.", "Facility Overseer - Ban");
             return;
         }
 
+        // §3.3: the row VM is decoration only — ban operates on the underlying
+        // captured id, never on the visual.
+        var player = row.Entry;
         var id = !string.IsNullOrWhiteSpace(player.SteamId64)
             ? player.SteamId64!
             : player.PrimaryId ?? "";
@@ -1413,6 +1626,9 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        // §3.2: surface the new ban on the Banished page + filter the roster.
+        RefreshAdmins(world);
+
         if (_processes.IsRunning(world.Id) &&
             MessageBox.Show(
                 result.Message + "\n\nRestart the server now to disconnect and enforce " +
@@ -1433,19 +1649,48 @@ public sealed partial class MainViewModel : ObservableObject
     private void UnbanSelectedPlayer()
     {
         var world = SelectedWorld;
-        var player = world?.SelectedRosterPlayer;
-        if (world is null || player is null)
+        var row = world?.SelectedRosterPlayer;
+        if (world is null || row is null)
         {
             MessageBox.Show(
                 "Select a player in the roster first.", "Facility Overseer - Unban");
             return;
         }
 
+        var player = row.Entry;
         var id = !string.IsNullOrWhiteSpace(player.SteamId64)
             ? player.SteamId64!
             : player.PrimaryId ?? "";
 
         var result = _bans.Unban(world.Model, id);
+        if (result.Success)
+        {
+            // §3.2: re-derive the banned set so the Banished page row drops.
+            RefreshAdmins(world);
+        }
+        MessageBox.Show(result.Message, "Facility Overseer - Unban");
+    }
+
+    /// <summary>
+    /// §3.2: lift a ban from the Banished page directly. Operates on the
+    /// underlying id row, not on the roster (banned ids are deliberately
+    /// hidden from the roster).
+    /// </summary>
+    [RelayCommand]
+    private void UnbanFromBanished(string? id)
+    {
+        var world = SelectedWorld;
+        if (world is null || string.IsNullOrWhiteSpace(id))
+        {
+            return;
+        }
+
+        var result = _bans.Unban(world.Model, id);
+        if (result.Success)
+        {
+            RefreshAdmins(world);
+        }
+
         MessageBox.Show(result.Message, "Facility Overseer - Unban");
     }
 

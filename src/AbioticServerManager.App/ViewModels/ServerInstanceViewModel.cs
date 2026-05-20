@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Runtime.CompilerServices;
+using AbioticServerManager.Core.Admin;
 using AbioticServerManager.Core.Backup;
 using AbioticServerManager.Core.Diagnostics;
 using AbioticServerManager.Core.Models;
@@ -186,8 +187,17 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
 
     public ObservableCollection<PlayerSession> PlayerSessions { get; } = [];
 
-    /// <summary>Durable roster (online first), parsed from real Abiotic Factor logs.</summary>
-    public ObservableCollection<PlayerRosterEntry> Roster { get; } = [];
+    /// <summary>
+    /// Durable roster (online first), parsed from real Abiotic Factor logs.
+    /// §3.2: banned ids are filtered out of this collection — they appear on
+    /// the Banished sub-tab only.
+    /// §3.3: each row exposes a derived <c>IsAdmin</c> resolved against the
+    /// world's moderator list at refresh time.
+    /// </summary>
+    public ObservableCollection<RosterRowViewModel> Roster { get; } = [];
+
+    /// <summary>§3.2 banished-players page rows (id / last-known name / source / notes).</summary>
+    public ObservableCollection<BannedPlayerRow> BannedPlayers { get; } = [];
 
     public ObservableCollection<PlayerRosterEvent> RosterActivity { get; } = [];
 
@@ -242,13 +252,47 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
     private string _playersOnlineText = "No players have connected yet.";
 
     [ObservableProperty]
-    private PlayerRosterEntry? _selectedRosterPlayer;
+    private RosterRowViewModel? _selectedRosterPlayer;
+
+    /// <summary>
+    /// Snapshot of the world's moderator SteamID64 set, refreshed by the shell
+    /// whenever Admin.ini changes. Drives the §3.3 admin marker on roster rows.
+    /// </summary>
+    public IReadOnlyList<string> ModeratorIds { get; private set; } = [];
+
+    /// <summary>
+    /// Snapshot of the world's banned SteamID64 set, refreshed by the shell
+    /// whenever Admin.ini changes. Drives §3.2 (filter banned from roster +
+    /// surface them on the Banished page) and the Admin-tab badge count.
+    /// </summary>
+    public IReadOnlyList<string> BannedIds { get; private set; } = [];
+
+    /// <summary>Count surfaced as a small badge on the Admin tab header.</summary>
+    [ObservableProperty]
+    private int _bannedCount;
+
+    public void UpdateModerationLists(
+        IReadOnlyList<string> moderatorIds,
+        IReadOnlyList<string> bannedIds)
+    {
+        ModeratorIds = moderatorIds;
+        BannedIds = bannedIds;
+        BannedCount = bannedIds.Count;
+        RefreshRoster();
+    }
 
     /// <summary>Honest runtime health detail (process vs actually online vs blocked).</summary>
     [ObservableProperty]
     private string _healthDetail = "Server is stopped.";
 
     public string HealthStatusText => _health.StatusText;
+
+    /// <summary>
+    /// Honest, single-source-of-truth health value the world status dot binds to.
+    /// Do not bind a dot to <see cref="IsRunningState"/> — process presence is
+    /// not health (a corrupt world is briefly running but Blocked).
+    /// </summary>
+    public ServerHealth Health => _health.Health;
 
     public void OnServerStarted()
     {
@@ -274,6 +318,7 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
     {
         HealthDetail = _health.Reason;
         OnPropertyChanged(nameof(HealthStatusText));
+        OnPropertyChanged(nameof(Health));
         if (IsRunningState || _health.StatusText is "Blocked" or "Crashed")
         {
             StatusText = _health.StatusText;
@@ -387,10 +432,17 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
         // next log event).
         var selectedKey = SelectedRosterPlayer?.Key;
 
+        // §3.2: live roster excludes banned ids; they appear only on the
+        // Banished sub-tab (Banished page rows below).
+        var entries = _roster.Entries;
+        var visible = RosterPresentation.FilterActive(entries, BannedIds);
+
         Roster.Clear();
-        foreach (var entry in _roster.Entries)
+        foreach (var entry in visible)
         {
-            Roster.Add(entry);
+            // §3.3: derived IsAdmin per row; decoration only.
+            var isAdmin = RosterPresentation.IsAdmin(entry, ModeratorIds);
+            Roster.Add(new RosterRowViewModel(entry, isAdmin));
         }
 
         if (selectedKey is { Length: > 0 })
@@ -402,6 +454,14 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
         foreach (var evt in _roster.History)
         {
             RosterActivity.Add(evt);
+        }
+
+        // §3.2 banished-players page rows (built from the sectioned ids,
+        // joined with the full roster for last-known display name).
+        BannedPlayers.Clear();
+        foreach (var row in RosterPresentation.BuildBannedRows(BannedIds, entries))
+        {
+            BannedPlayers.Add(row);
         }
 
         var header = $"Players Online: {_roster.OnlineCount}/{MaxPlayers}";

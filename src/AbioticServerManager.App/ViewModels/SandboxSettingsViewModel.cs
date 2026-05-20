@@ -21,6 +21,14 @@ public sealed partial class SandboxSettingsViewModel : ObservableObject
     public ObservableCollection<SettingViewModel> EnemySettings { get; } = [];
     public ObservableCollection<SettingViewModel> AdvancedSettings { get; } = [];
 
+    /// <summary>
+    /// True when there are any uncategorised/unknown settings to show on the
+    /// Advanced tab. Bound to the tab's Visibility so an empty Advanced tab is
+    /// HIDDEN, not removed — the catch-all must still appear the moment a
+    /// future game update introduces unknown keys.
+    /// </summary>
+    public bool HasAdvancedSettings => AdvancedSettings.Count > 0;
+
     [ObservableProperty]
     private bool _isLoaded;
 
@@ -70,6 +78,7 @@ public sealed partial class SandboxSettingsViewModel : ObservableObject
 
         IsLoaded = true;
         IsDirty = false;
+        OnPropertyChanged(nameof(HasAdvancedSettings));
         var unknown = document.Settings.Count(s => !s.IsKnown);
         StatusText = $"{document.Settings.Count} settings loaded" +
                      (unknown > 0 ? $" ({unknown} unknown, preserved)" : "") +

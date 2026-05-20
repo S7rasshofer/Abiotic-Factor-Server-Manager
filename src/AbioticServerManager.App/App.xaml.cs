@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using AbioticServerManager.App.ViewModels;
+using AbioticServerManager.App.Views;
 using AbioticServerManager.Core;
 using AbioticServerManager.Core.Services;
 using AbioticServerManager.Infrastructure;
@@ -20,6 +21,22 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // First-launch only: offer Portable / AppData / Custom. Subsequent launches
+        // read the saved choice and skip the dialog. Cancelling the dialog quits the
+        // app rather than silently auto-detecting (otherwise the user would never
+        // get the dialog again and the "saved choice" model would be a lie).
+        if (DataRootChoiceFile.TryLoad() is null)
+        {
+            var picker = new DataRootPickerWindow();
+            if (picker.ShowDialog() != true || string.IsNullOrEmpty(picker.ChosenPath))
+            {
+                Shutdown(0);
+                return;
+            }
+
+            DataRootChoiceFile.TrySave(picker.ChosenPath);
+        }
 
         // AppPaths is deterministic, so build it before the host to know where logs go.
         var paths = new AppPaths();

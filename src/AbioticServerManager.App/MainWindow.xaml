@@ -20,12 +20,17 @@
     <Window.Resources>
         <conv:SeverityToBrushConverter x:Key="SeverityToBrush" />
         <conv:RunningToBrushConverter x:Key="RunningToBrush" />
+        <conv:HealthToBrushConverter x:Key="HealthToBrush" />
         <conv:InverseBoolConverter x:Key="InverseBool" />
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibility" />
         <conv:StringToVisibilityConverter x:Key="StringToVisibility" />
         <conv:InverseBoolToVisibilityConverter x:Key="InvBoolToVisibility" />
         <conv:CheckStatusToBrushConverter x:Key="CheckStatusToBrush" />
         <conv:NetworkCheckStatusToBrushConverter x:Key="NetworkCheckStatusToBrush" />
+        <conv:PositiveIntToVisibilityConverter x:Key="PositiveIntToVisibility" />
+        <conv:IsAdminToBrushConverter x:Key="IsAdminToBrush"
+                                      AdminBrush="{StaticResource AdminAccentBrush}"
+                                      DefaultBrush="{StaticResource TextBrush}" />
 
         <!-- Shared Save bar for every sandbox tab. Content = ServerInstanceViewModel.
              The sandbox auto-loads on world selection, so there is no Load button. -->
@@ -87,8 +92,30 @@
                         Command="{Binding CloneWorldCommand}" />
                 <Button DockPanel.Dock="Left" Content="Delete"
                         Command="{Binding DeleteWorldCommand}" />
+                <Button DockPanel.Dock="Left" Content="Reset Data…" Margin="14,0,0,0"
+                        ToolTip="Erase everything Facility Overseer manages (worlds, backups, server install). Your data-root choice is preserved."
+                        Command="{Binding ResetManagedDataCommand}" />
                 <Button DockPanel.Dock="Right" Content="Save"
                         Command="{Binding SaveCommand}" />
+
+                <!-- LAN / Public IP strip: always visible so the user knows what address
+                     friends are reaching this PC at, and can spot a CGNAT / no-public-IP
+                     situation without digging into the Network tab. -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                            VerticalAlignment="Center" Margin="0,0,12,0">
+                    <TextBlock Text="LAN " Style="{StaticResource MutedText}"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding LanIpv4}" FontFamily="Consolas"
+                               FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text="  ·  Public " Style="{StaticResource MutedText}"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding PublicIpv4}" FontFamily="Consolas"
+                               FontWeight="SemiBold" VerticalAlignment="Center"
+                               ToolTip="Discovered via a one-shot HTTPS lookup. Click ⟳ to refresh." />
+                    <Button Content="⟳" Margin="6,0,0,0" Padding="6,1"
+                            ToolTip="Refresh public IP"
+                            Command="{Binding RefreshPublicIpCommand}" />
+                </StackPanel>
             </DockPanel>
         </Border>
 
@@ -124,6 +151,23 @@
             </StackPanel>
         </Border>
 
+        <!-- LAN IP change banner: visible only when this PC's LAN IPv4 differs from
+             the last persisted snapshot. Port forwarding may need attention. -->
+        <Border Grid.Row="1" Background="{StaticResource SurfaceAltBrush}"
+                BorderBrush="{StaticResource WarnBrush}" BorderThickness="1"
+                CornerRadius="4" Padding="12,8" Margin="0,0,0,12"
+                VerticalAlignment="Bottom"
+                Visibility="{Binding HasInternalIpChangeBanner, Converter={StaticResource BoolToVisibility}}">
+            <DockPanel LastChildFill="True">
+                <Button DockPanel.Dock="Right" Content="Dismiss" Margin="12,0,0,0"
+                        Command="{Binding DismissInternalIpChangeBannerCommand}" />
+                <TextBlock Text="{Binding InternalIpChangeBannerText}"
+                           Foreground="{StaticResource WarnBrush}"
+                           FontWeight="SemiBold" TextWrapping="Wrap"
+                           VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
+
         <!-- Horizontal world tabs -->
         <TabControl Grid.Row="2"
                     ItemsSource="{Binding Worlds}"
@@ -132,7 +176,8 @@
                 <DataTemplate DataType="{x:Type vm:ServerInstanceViewModel}">
                     <StackPanel Orientation="Horizontal">
                         <Ellipse Width="9" Height="9" Margin="0,0,8,0"
-                                 Fill="{Binding IsRunningState, Converter={StaticResource RunningToBrush}}" />
+                                 ToolTip="{Binding HealthStatusText}"
+                                 Fill="{Binding Health, Converter={StaticResource HealthToBrush}}" />
                         <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
                     </StackPanel>
                 </DataTemplate>
@@ -162,10 +207,10 @@
                                     </StackPanel>
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
                                                 HorizontalAlignment="Right">
-                                        <Ellipse Width="11" Height="11" Margin="0,0,8,0"
-                                                 VerticalAlignment="Center"
-                                                 Fill="{Binding IsRunningState, Converter={StaticResource RunningToBrush}}" />
-                                        <TextBlock Text="{Binding StatusText}" FontWeight="SemiBold" />
+                                        <!-- World status dot lives on the tab chip (single source of truth).
+                                             Keep only the StatusText label here so health isn't communicated twice. -->
+                                        <TextBlock Text="{Binding StatusText}" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center" />
                                     </StackPanel>
                                 </DockPanel>
                             </Border>
@@ -516,65 +561,166 @@
                                         EmptyHint="Enemy spawn, health and damage settings appear here automatically once the server is installed." />
                                 </DockPanel>
                             </TabItem>
-                            <TabItem Header="Admin">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20">
-                                    <StackPanel MaxWidth="640" HorizontalAlignment="Left">
-                                        <TextBlock Text="Admin" Style="{StaticResource HeaderText}" />
-
-                                        <TextBlock Text="Admin Password" Style="{StaticResource MutedText}"
-                                                   Margin="0,8,0,0" />
-                                        <Grid Margin="0,2,0,0">
-                                            <PasswordBox behaviors:PasswordBoxBehavior.IsAttached="True"
-                                                         behaviors:PasswordBoxBehavior.BoundPassword="{Binding AdminPassword, Mode=TwoWay}"
-                                                         Visibility="{Binding IsChecked, ElementName=RevealAdminPw2, Converter={StaticResource InverseBool}}" />
-                                            <TextBox Text="{Binding AdminPassword, UpdateSourceTrigger=PropertyChanged}"
-                                                     Visibility="{Binding IsChecked, ElementName=RevealAdminPw2, Converter={StaticResource BoolToVisibility}}" />
-                                        </Grid>
-                                        <CheckBox x:Name="RevealAdminPw2" Content="Reveal" />
-                                        <TextBlock Style="{StaticResource MutedText}" FontSize="11" Margin="0,2,0,12"
-                                                   Text="Players who enter this password in-game gain admin commands." />
-
-                                        <TextBlock Text="Admins.ini location" Style="{StaticResource MutedText}" />
-                                        <DockPanel Margin="0,2,0,12" LastChildFill="True">
-                                            <Button DockPanel.Dock="Right" Content="Open Folder"
-                                                    Margin="8,0,0,0"
-                                                    Command="{Binding DataContext.OpenAdminFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                            <TextBox Text="{Binding AdminIniPath, UpdateSourceTrigger=PropertyChanged}" />
-                                        </DockPanel>
-
-                                        <TextBlock Text="Admins (SteamID64)" Style="{StaticResource MutedText}" />
-                                        <DockPanel Margin="0,2,0,8" LastChildFill="True">
-                                            <Button DockPanel.Dock="Right" Content="Add" Margin="8,0,0,0"
-                                                    Style="{StaticResource AccentButton}"
-                                                    Command="{Binding DataContext.AddAdminCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                            <TextBox Text="{Binding NewAdminId, UpdateSourceTrigger=PropertyChanged}" />
-                                        </DockPanel>
-
-                                        <TextBlock Text="{Binding AdminStatusText}"
-                                                   Style="{StaticResource MutedText}" FontSize="11"
-                                                   TextWrapping="Wrap" Margin="0,0,0,8" />
-
-                                        <Border Background="{StaticResource SurfaceAltBrush}"
-                                                CornerRadius="4" Padding="6" MinHeight="80">
-                                            <ItemsControl ItemsSource="{Binding Admins}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Border Background="{StaticResource SurfaceBrush}"
-                                                                CornerRadius="4" Padding="10,6" Margin="0,0,0,4">
-                                                            <DockPanel LastChildFill="True">
-                                                                <Button DockPanel.Dock="Right" Content="Remove"
-                                                                        Command="{Binding DataContext.RemoveAdminCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                        CommandParameter="{Binding}" />
-                                                                <TextBlock Text="{Binding}" FontFamily="Consolas"
-                                                                           VerticalAlignment="Center" />
-                                                            </DockPanel>
-                                                        </Border>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
+                            <TabItem>
+                                <TabItem.Header>
+                                    <!-- §3.2: small badge with the ban count when non-zero. -->
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Admin" VerticalAlignment="Center" />
+                                        <Border Margin="6,0,0,0" Padding="6,1" CornerRadius="8"
+                                                Background="{StaticResource ErrorBrush}"
+                                                VerticalAlignment="Center"
+                                                Visibility="{Binding BannedCount, Converter={StaticResource PositiveIntToVisibility}}">
+                                            <TextBlock Text="{Binding BannedCount}" FontSize="10"
+                                                       FontWeight="Bold" Foreground="White" />
                                         </Border>
                                     </StackPanel>
-                                </ScrollViewer>
+                                </TabItem.Header>
+
+                                <TabControl Background="Transparent" Margin="0,8,0,0">
+                                    <TabItem Header="Admins">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20">
+                                            <StackPanel MaxWidth="640" HorizontalAlignment="Left">
+                                                <TextBlock Text="Admin" Style="{StaticResource HeaderText}" />
+
+                                                <TextBlock Text="Admin Password" Style="{StaticResource MutedText}"
+                                                           Margin="0,8,0,0" />
+                                                <Grid Margin="0,2,0,0">
+                                                    <PasswordBox behaviors:PasswordBoxBehavior.IsAttached="True"
+                                                                 behaviors:PasswordBoxBehavior.BoundPassword="{Binding AdminPassword, Mode=TwoWay}"
+                                                                 Visibility="{Binding IsChecked, ElementName=RevealAdminPw2, Converter={StaticResource InverseBool}}" />
+                                                    <TextBox Text="{Binding AdminPassword, UpdateSourceTrigger=PropertyChanged}"
+                                                             Visibility="{Binding IsChecked, ElementName=RevealAdminPw2, Converter={StaticResource BoolToVisibility}}" />
+                                                </Grid>
+                                                <CheckBox x:Name="RevealAdminPw2" Content="Reveal" />
+                                                <TextBlock Style="{StaticResource MutedText}" FontSize="11" Margin="0,2,0,12"
+                                                           Text="Players who enter this password in-game gain admin commands." />
+
+                                                <TextBlock Text="Admin.ini location" Style="{StaticResource MutedText}" />
+                                                <DockPanel Margin="0,2,0,12" LastChildFill="True">
+                                                    <Button DockPanel.Dock="Right" Content="Open Folder"
+                                                            Margin="8,0,0,0"
+                                                            Command="{Binding DataContext.OpenAdminFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                    <TextBox Text="{Binding AdminIniPath, UpdateSourceTrigger=PropertyChanged}" />
+                                                </DockPanel>
+
+                                                <TextBlock Text="Moderators (SteamID64)" Style="{StaticResource MutedText}" />
+                                                <DockPanel Margin="0,2,0,8" LastChildFill="True">
+                                                    <Button DockPanel.Dock="Right" Content="Add" Margin="8,0,0,0"
+                                                            Style="{StaticResource AccentButton}"
+                                                            Command="{Binding DataContext.AddAdminCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                    <TextBox Text="{Binding NewAdminId, UpdateSourceTrigger=PropertyChanged}" />
+                                                </DockPanel>
+
+                                                <TextBlock Text="{Binding AdminStatusText}"
+                                                           Style="{StaticResource MutedText}" FontSize="11"
+                                                           TextWrapping="Wrap" Margin="0,0,0,8" />
+
+                                                <Border Background="{StaticResource SurfaceAltBrush}"
+                                                        CornerRadius="4" Padding="6" MinHeight="80">
+                                                    <ItemsControl ItemsSource="{Binding Admins}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Background="{StaticResource SurfaceBrush}"
+                                                                        CornerRadius="4" Padding="10,6" Margin="0,0,0,4">
+                                                                    <DockPanel LastChildFill="True">
+                                                                        <Button DockPanel.Dock="Right" Content="Remove"
+                                                                                Command="{Binding DataContext.RemoveAdminCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                                CommandParameter="{Binding}" />
+                                                                        <TextBlock Text="{Binding}" FontFamily="Consolas"
+                                                                                   VerticalAlignment="Center"
+                                                                                   Foreground="{StaticResource AdminAccentBrush}" />
+                                                                    </DockPanel>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </Border>
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </TabItem>
+
+                                    <!-- §3.2 Banished players sub-tab. Powered by the same sectioned
+                                         Admin.ini reader as Ban/Unban; banned ids never appear in
+                                         the live roster on Logs &amp; Status / Players. -->
+                                    <TabItem Header="Banned">
+                                        <Grid Margin="20">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="*" />
+                                            </Grid.RowDefinitions>
+
+                                            <TextBlock Grid.Row="0" Text="Banished Players"
+                                                       Style="{StaticResource HeaderText}" />
+
+                                            <TextBlock Grid.Row="1" Style="{StaticResource MutedText}"
+                                                       Margin="0,0,0,12" TextWrapping="Wrap"
+                                                       Text="Banned IDs read from this world's Admin.ini [BannedPlayers] section. The active roster on Logs &amp; Status excludes these IDs — unban here to bring them back." />
+
+                                            <Border Grid.Row="2" Background="{StaticResource SurfaceAltBrush}"
+                                                    CornerRadius="4" Padding="8">
+                                                <DockPanel>
+                                                    <Grid DockPanel.Dock="Top" Margin="6,0,6,6">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="150" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="120" />
+                                                            <ColumnDefinition Width="80" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="90" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="ID" Style="{StaticResource MutedText}" FontSize="10" />
+                                                        <TextBlock Grid.Column="1" Text="LAST-KNOWN NAME" Style="{StaticResource MutedText}" FontSize="10" />
+                                                        <TextBlock Grid.Column="2" Text="DATE BANNED" Style="{StaticResource MutedText}" FontSize="10" />
+                                                        <TextBlock Grid.Column="3" Text="SOURCE" Style="{StaticResource MutedText}" FontSize="10" />
+                                                        <TextBlock Grid.Column="4" Text="NOTES" Style="{StaticResource MutedText}" FontSize="10" />
+                                                        <TextBlock Grid.Column="5" Text="" Style="{StaticResource MutedText}" FontSize="10" />
+                                                    </Grid>
+                                                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource MutedText}"
+                                                               Margin="6,4" TextWrapping="Wrap"
+                                                               Text="No banned players for this world."
+                                                               Visibility="{Binding HasItems, ElementName=BannedList, Converter={StaticResource InvBoolToVisibility}}" />
+                                                    <ListBox x:Name="BannedList" ItemsSource="{Binding BannedPlayers}"
+                                                             Background="Transparent" BorderThickness="0"
+                                                             HorizontalContentAlignment="Stretch">
+                                                        <ListBox.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Background="{StaticResource SurfaceBrush}"
+                                                                        CornerRadius="4" Padding="10,6" Margin="0,0,0,4">
+                                                                    <Grid>
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="150" />
+                                                                            <ColumnDefinition Width="*" />
+                                                                            <ColumnDefinition Width="120" />
+                                                                            <ColumnDefinition Width="80" />
+                                                                            <ColumnDefinition Width="*" />
+                                                                            <ColumnDefinition Width="90" />
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <TextBlock Grid.Column="0" Text="{Binding Id}"
+                                                                                   FontFamily="Consolas" FontSize="11"
+                                                                                   TextTrimming="CharacterEllipsis" />
+                                                                        <TextBlock Grid.Column="1" Text="{Binding DisplayName}"
+                                                                                   FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                                        <TextBlock Grid.Column="2" Text="{Binding DateBannedText}"
+                                                                                   FontFamily="Consolas" FontSize="11"
+                                                                                   Style="{StaticResource MutedText}" />
+                                                                        <TextBlock Grid.Column="3" Text="{Binding SourceText}"
+                                                                                   Style="{StaticResource MutedText}" />
+                                                                        <TextBlock Grid.Column="4" Text="{Binding Notes}"
+                                                                                   Style="{StaticResource MutedText}" />
+                                                                        <Button Grid.Column="5" Content="Unban"
+                                                                                Command="{Binding DataContext.UnbanFromBanishedCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                                CommandParameter="{Binding Id}" />
+                                                                    </Grid>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ListBox.ItemTemplate>
+                                                    </ListBox>
+                                                </DockPanel>
+                                            </Border>
+                                        </Grid>
+                                    </TabItem>
+                                </TabControl>
                             </TabItem>
                             <TabItem Header="Backups">
                                 <Grid Margin="20">
@@ -655,10 +801,10 @@
                                     <DockPanel Grid.Row="0" Margin="0,0,0,12" LastChildFill="False">
                                         <StackPanel DockPanel.Dock="Left">
                                             <StackPanel Orientation="Horizontal">
-                                                <Ellipse Width="11" Height="11" Margin="0,0,8,0"
-                                                         VerticalAlignment="Center"
-                                                         Fill="{Binding IsRunningState, Converter={StaticResource RunningToBrush}}" />
-                                                <TextBlock Text="{Binding StatusText}" FontWeight="SemiBold" />
+                                                <!-- World status dot lives on the tab chip (single source of truth).
+                                                     Keep only the label and the health detail line here. -->
+                                                <TextBlock Text="{Binding StatusText}" FontWeight="SemiBold"
+                                                           VerticalAlignment="Center" />
                                             </StackPanel>
                                             <TextBlock Text="{Binding HealthDetail}"
                                                        Style="{StaticResource MutedText}"
@@ -819,8 +965,31 @@
                                                                                          Fill="{Binding IsOnline, Converter={StaticResource RunningToBrush}}" />
                                                                                 <TextBlock Text="{Binding StatusText}" FontSize="11" />
                                                                             </StackPanel>
-                                                                            <TextBlock Grid.Column="1" Text="{Binding DisplayName}"
-                                                                                       FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                                            <!-- §3.3 admin thematic marker: warm gold name + superscript "+"
+                                                                                 when the row's SteamID64 matches the moderator list. Tooltip
+                                                                                 names the privilege. Decoration only — Ban/Unban operate on
+                                                                                 the underlying captured id. -->
+                                                                            <TextBlock Grid.Column="1" TextTrimming="CharacterEllipsis"
+                                                                                       Foreground="{Binding IsAdmin, Converter={StaticResource IsAdminToBrush}}">
+                                                                                <TextBlock.ToolTip>
+                                                                                    <ToolTip Visibility="{Binding IsAdmin, Converter={StaticResource BoolToVisibility}}"
+                                                                                             Content="Server administrator — has admin commands." />
+                                                                                </TextBlock.ToolTip>
+                                                                                <Run Text="{Binding DisplayName, Mode=OneWay}" FontWeight="SemiBold" />
+                                                                                <Run Text="⁺" FontWeight="SemiBold"
+                                                                                     Foreground="{StaticResource AdminAccentBrush}">
+                                                                                    <Run.Style>
+                                                                                        <Style TargetType="{x:Type Run}">
+                                                                                            <Setter Property="Text" Value="" />
+                                                                                            <Style.Triggers>
+                                                                                                <DataTrigger Binding="{Binding IsAdmin}" Value="True">
+                                                                                                    <Setter Property="Text" Value="⁺" />
+                                                                                                </DataTrigger>
+                                                                                            </Style.Triggers>
+                                                                                        </Style>
+                                                                                    </Run.Style>
+                                                                                </Run>
+                                                                            </TextBlock>
                                                                             <TextBlock Grid.Column="2" Text="{Binding IdText}"
                                                                                        FontFamily="Consolas" FontSize="11"
                                                                                        Style="{StaticResource MutedText}"
@@ -915,7 +1084,12 @@
                                 </Grid>
                             </TabItem>
 
-                            <TabItem Header="Advanced">
+                            <!-- Advanced is the loss-less catch-all for uncategorised/unknown
+                                 sandbox keys (discover-dont-hardcode). Hide when empty rather
+                                 than removing so a future game update that adds unknown keys
+                                 still has a home and nothing is silently dropped. -->
+                            <TabItem Header="Advanced"
+                                     Visibility="{Binding Sandbox.HasAdvancedSettings, Converter={StaticResource BoolToVisibility}}">
                                 <DockPanel>
                                     <ContentControl DockPanel.Dock="Top"
                                                     ContentTemplate="{StaticResource SandboxToolbar}"

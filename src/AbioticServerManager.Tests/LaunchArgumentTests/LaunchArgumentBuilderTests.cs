@@ -160,16 +160,25 @@ public class LaunchArgumentBuilderTests
     }
 
     [Fact]
-    public void Omits_absolute_config_paths_outside_the_server_saved_root()
+    public void Emits_absolute_config_paths_outside_the_server_saved_root()
     {
+        // §2.1: per-world INIs live under <DataRoot>/worlds/<id>/config/ —
+        // outside the server install, so they cannot be expressed as relative
+        // to <install>/AbioticFactor/Saved/. The launch arg uses the absolute
+        // path (Unreal accepts both forms), so the world's tuning and admins
+        // still reach the server even though they live in DataRoot.
         var instance = Sample();
         instance.InstallPath = @"C:\Servers\Abiotic";
-        instance.SandboxIniPath = @"C:\OldServer\SandboxSettings.ini";
-        instance.AdminIniPath = @"C:\OldServer\Admin.ini";
+        instance.SandboxIniPath = @"C:\Data\worlds\w1\config\SandboxSettings.ini";
+        instance.AdminIniPath = @"C:\Data\worlds\w1\config\Admin.ini";
 
         var args = Builder.BuildArguments(instance);
 
-        Assert.DoesNotContain(args, a => a.StartsWith("-SandboxIniPath", StringComparison.Ordinal));
-        Assert.DoesNotContain(args, a => a.StartsWith("-AdminIniPath", StringComparison.Ordinal));
+        Assert.Contains(args, a =>
+            a.StartsWith("-SandboxIniPath=", StringComparison.Ordinal) &&
+            a.Contains(@"C:\Data\worlds\w1\config\SandboxSettings.ini", StringComparison.Ordinal));
+        Assert.Contains(args, a =>
+            a.StartsWith("-AdminIniPath=", StringComparison.Ordinal) &&
+            a.Contains(@"C:\Data\worlds\w1\config\Admin.ini", StringComparison.Ordinal));
     }
 }

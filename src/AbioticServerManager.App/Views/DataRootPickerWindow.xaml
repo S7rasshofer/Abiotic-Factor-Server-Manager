@@ -1,0 +1,62 @@
+<Window x:Class="AbioticServerManager.App.Views.DataRootPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Facility Overseer — Where should we keep your data?"
+        Width="640" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        FontFamily="Segoe UI" FontSize="13"
+        Background="#0E1218" Foreground="#E6ECF2">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Choose a data folder"
+                   FontSize="18" FontWeight="Bold" Margin="0,0,0,4" />
+        <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="0,0,0,16"
+                   Foreground="#A8B5C1"
+                   Text="Facility Overseer stores world profiles, sandbox settings, admin/ban lists, backups, and SteamCMD here. The choice is saved and honored every launch — pick once, never reappears." />
+
+        <StackPanel Grid.Row="2">
+            <RadioButton x:Name="PortableRadio" GroupName="DataRoot"
+                         Content="Portable — next to the application" />
+            <TextBlock Margin="22,0,0,10" Foreground="#A8B5C1" FontSize="11"
+                       TextWrapping="Wrap"
+                       Text="{Binding PortablePath, ElementName=Self}" />
+
+            <RadioButton x:Name="AppDataRadio" GroupName="DataRoot" IsChecked="True"
+                         Content="User profile (recommended for managed installs)" />
+            <TextBlock Margin="22,0,0,10" Foreground="#A8B5C1" FontSize="11"
+                       TextWrapping="Wrap"
+                       Text="{Binding AppDataPath, ElementName=Self}" />
+
+            <RadioButton x:Name="CustomRadio" GroupName="DataRoot"
+                         Content="Custom folder" />
+            <DockPanel Margin="22,2,0,4" LastChildFill="True"
+                       IsEnabled="{Binding IsChecked, ElementName=CustomRadio}">
+                <Button DockPanel.Dock="Right" Content="Browse…" Margin="6,0,0,0"
+                        Click="OnBrowseClicked" />
+                <TextBox x:Name="CustomPathBox" />
+            </DockPanel>
+            <TextBlock Margin="22,0,0,10" Foreground="#A8B5C1" FontSize="11"
+                       TextWrapping="Wrap"
+                       Text="Useful when you want the data on a different drive (e.g., D:\FacilityOverseerData)." />
+        </StackPanel>
+
+        <TextBlock Grid.Row="3" Margin="0,8,0,12" TextWrapping="Wrap"
+                   Foreground="#E6B84B" FontSize="11"
+                   Text="Note: large rewrite-heavy files (SteamCMD, the dedicated server install) are kept off cloud-sync paths automatically. You will never see this dialog again unless you delete the saved choice." />
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Cancel" Padding="14,5" Margin="0,0,8,0" Click="OnCancelClicked" />
+            <Button Content="Continue" Padding="14,5" IsDefault="True"
+                    Click="OnContinueClicked" />
+        </StackPanel>
+    </Grid>
+</Window>

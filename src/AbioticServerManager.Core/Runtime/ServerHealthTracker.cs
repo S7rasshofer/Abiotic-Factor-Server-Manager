@@ -14,6 +14,32 @@ public enum ServerHealth
 }
 
 /// <summary>
+/// Semantic indicator color for a <see cref="ServerHealth"/> value. The actual
+/// pixel color lives in the App layer; this enum keeps the mapping in Core so
+/// it is unit-testable without pulling in WPF.
+/// </summary>
+public enum HealthIndicator
+{
+    Grey,    // Stopped — nothing running
+    Yellow,  // Starting — running, not yet ready
+    Green,   // Online — ready for players
+    Red,     // Blocked / Crashed — running or recently running but unhealthy
+}
+
+public static class HealthIndicators
+{
+    public static HealthIndicator For(ServerHealth health) => health switch
+    {
+        ServerHealth.Stopped => HealthIndicator.Grey,
+        ServerHealth.Starting => HealthIndicator.Yellow,
+        ServerHealth.Online => HealthIndicator.Green,
+        ServerHealth.Blocked => HealthIndicator.Red,
+        ServerHealth.Crashed => HealthIndicator.Red,
+        _ => HealthIndicator.Grey,
+    };
+}
+
+/// <summary>
 /// Pure recognition of readiness / blocking log signals. Best-effort token
 /// matching - unit-tested so behaviour is pinned even though Abiotic Factor's
 /// exact phrasing can shift between builds.

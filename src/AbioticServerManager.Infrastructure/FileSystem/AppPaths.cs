@@ -70,6 +70,35 @@ public sealed class AppPaths : IAppPaths
 
     public string PlayersDirectory => Path.Combine(DataRoot, "players");
 
+    // §2.1: World config (sandbox/admin/etc.) lives under DataRoot/worlds/<id>/
+    // so a SteamCMD validate, a server reinstall, or a VolatileRoot wipe cannot
+    // destroy per-world tuning, admins, or bans.
+    public string WorldsDirectory => Path.Combine(DataRoot, "worlds");
+
+    public string WorldDirectory(string worldId) =>
+        Path.Combine(WorldsDirectory, SanitizeWorldId(worldId));
+
+    public string WorldConfigDirectory(string worldId) =>
+        Path.Combine(WorldDirectory(worldId), "config");
+
+    public string WorldSandboxIniPath(string worldId) =>
+        Path.Combine(WorldConfigDirectory(worldId), "SandboxSettings.ini");
+
+    public string WorldAdminIniPath(string worldId) =>
+        Path.Combine(WorldConfigDirectory(worldId), "Admin.ini");
+
+    public string WorldMetadataJsonPath(string worldId) =>
+        Path.Combine(WorldConfigDirectory(worldId), "metadata.json");
+
+    public string WorldSavesDirectory(string worldId) =>
+        Path.Combine(WorldDirectory(worldId), "saves");
+
+    public string WorldRosterDirectory(string worldId) =>
+        Path.Combine(WorldDirectory(worldId), "roster");
+
+    public string WorldRuntimeDirectory(string worldId) =>
+        Path.Combine(WorldDirectory(worldId), "runtime");
+
     public void EnsureCreated()
     {
         Directory.CreateDirectory(DataRoot);
@@ -79,13 +108,67 @@ public sealed class AppPaths : IAppPaths
         Directory.CreateDirectory(ServersDirectory);
         Directory.CreateDirectory(BackupsRoot);
         Directory.CreateDirectory(LogsDirectory);
+        Directory.CreateDirectory(WorldsDirectory);
+    }
+
+    public void EnsureWorldCreated(string worldId)
+    {
+        var safe = SanitizeWorldId(worldId);
+        if (string.IsNullOrEmpty(safe))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(WorldsDirectory);
+        Directory.CreateDirectory(WorldDirectory(safe));
+        Directory.CreateDirectory(WorldConfigDirectory(safe));
+        Directory.CreateDirectory(WorldSavesDirectory(safe));
+        Directory.CreateDirectory(WorldRosterDirectory(safe));
+        Directory.CreateDirectory(WorldRuntimeDirectory(safe));
+    }
+
+    /// <summary>
+    /// Strips characters that would escape <see cref="WorldsDirectory"/>. A blank or
+    /// purely-invalid id collapses to the literal "_invalid" so we never silently
+    /// land at the worlds root itself. Caller is still expected to supply the
+    /// real <see cref="Core.Models.ServerInstance.Id"/>; this is a defence-in-depth
+    /// scrub, not a substitute for stable ids.
+    /// </summary>
+    internal static string SanitizeWorldId(string worldId)
+    {
+        if (string.IsNullOrWhiteSpace(worldId))
+        {
+            return "_invalid";
+        }
+
+        var invalid = Path.GetInvalidFileNameChars();
+        var cleaned = new string([.. worldId.Where(c => !invalid.Contains(c))]).Trim();
+        return cleaned.Length == 0 ? "_invalid" : cleaned;
     }
 
     public static string ResolveDataRoot(
         string appBaseDirectory,
         string localApplicationDataRoot,
         bool appDirectoryWritable)
+        => ResolveDataRoot(null, appBaseDirectory, localApplicationDataRoot, appDirectoryWritable);
+
+    /// <summary>
+    /// Resolves the data root with an optional persisted user choice. A non-empty
+    /// <paramref name="savedChoice"/> always wins so that, e.g., a user who picked
+    /// AppData on first run never sees a portable data folder reappear beside the
+    /// exe on the next launch. Pure for unit-testability.
+    /// </summary>
+    public static string ResolveDataRoot(
+        string? savedChoice,
+        string appBaseDirectory,
+        string localApplicationDataRoot,
+        bool appDirectoryWritable)
     {
+        if (!string.IsNullOrWhiteSpace(savedChoice))
+        {
+            return Path.GetFullPath(savedChoice);
+        }
+
         return appDirectoryWritable
             ? Path.Combine(appBaseDirectory, PortableDataFolder)
             : Path.Combine(localApplicationDataRoot, ProductFolder);
@@ -93,9 +176,20 @@ public sealed class AppPaths : IAppPaths
 
     private static string ResolveDefaultDataRoot()
     {
+        var savedChoice = DataRootChoiceFile.TryLoad();
         var appBase = AppContext.BaseDirectory;
         var localRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return ResolveDataRoot(appBase, localRoot, CanWriteToDirectory(appBase));
+        var resolved = ResolveDataRoot(savedChoice, appBase, localRoot, CanWriteToDirectory(appBase));
+
+        // First-launch only: pin the auto-detected choice so subsequent launches
+        // are deterministic. A user who later picks AppData (or any other path)
+        // overwrites this file via the same helper.
+        if (string.IsNullOrWhiteSpace(savedChoice))
+        {
+            DataRootChoiceFile.TrySave(resolved);
+        }
+
+        return resolved;
     }
 
     /// <summary>
@@ -142,6 +236,65 @@ public sealed class AppPaths : IAppPaths
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            return false;
+        }
+    }
+}
+
+/// <summary>
+/// Persists the user's chosen data-root path in a tiny pointer file under
+/// <c>%LOCALAPPDATA%\FacilityOverseer\data-root.txt</c>. The pointer lives
+/// at a fixed, known-safe location so it can be consulted before the data
+/// root itself is known — and so the user's choice survives moving or
+/// republishing the exe.
+/// </summary>
+public static class DataRootChoiceFile
+{
+    private const string ProductFolder = "FacilityOverseer";
+    private const string FileName = "data-root.txt";
+
+    public static string DefaultPath() => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        ProductFolder,
+        FileName);
+
+    public static string? TryLoad(string? path = null)
+    {
+        path ??= DefaultPath();
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            var content = File.ReadAllText(path).Trim();
+            return content.Length == 0 ? null : content;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    public static bool TrySave(string dataRoot, string? path = null)
+    {
+        path ??= DefaultPath();
+        try
+        {
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            File.WriteAllText(path, dataRoot);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Best-effort. If we can't write the pointer file, the next launch
+            // will simply re-detect; we have not lost user data.
             return false;
         }
     }

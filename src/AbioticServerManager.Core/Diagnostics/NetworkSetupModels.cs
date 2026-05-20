@@ -170,4 +170,11 @@ public interface INetworkSetupService
     Task<FirewallSetupResult> EnsureFirewallRulesAsync(
         ServerInstance instance,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Detects the host's best LAN IPv4 without per-world coupling. Used at
+    /// startup to compare against the persisted snapshot and flag port-forwarding
+    /// concerns when the LAN IP has changed since the last launch.
+    /// </summary>
+    AbioticServerManager.Core.Networking.Ipv4SelectionResult DetectLanIpv4();
 }

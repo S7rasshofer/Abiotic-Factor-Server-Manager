@@ -2,6 +2,7 @@ using AbioticServerManager.Core.Admin;
 using AbioticServerManager.Core.Backup;
 using AbioticServerManager.Core.Diagnostics;
 using AbioticServerManager.Core.Install;
+using AbioticServerManager.Core.Networking;
 using AbioticServerManager.Core.Runtime;
 using AbioticServerManager.Core.Schema;
 using AbioticServerManager.Core.Services;
@@ -24,6 +25,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAppPaths, AppPaths>();
         services.AddSingleton<IInstanceStore, JsonInstanceStore>();
         services.AddSingleton<IPlayerRosterStore, JsonPlayerRosterStore>();
+        services.AddSingleton<IInternalIpSnapshotStore, JsonInternalIpSnapshotStore>();
+        services.AddSingleton<IPublicIpProbe, HttpPublicIpProbe>();
+        services.AddSingleton<IResetManagedDataService, ResetManagedDataService>();
+        services.AddSingleton<IWorldIdentityMigrationService, WorldIdentityMigrationService>();
         services.AddSingleton<ILegacyMigrationService, LegacyMigrationService>();
         services.AddSingleton<IBackupService, FileBackupService>();
         services.AddSingleton<IAdminListService, AdminListService>();

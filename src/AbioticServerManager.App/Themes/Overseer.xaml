@@ -28,6 +28,10 @@
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
     <SolidColorBrush x:Key="AccentAltBrush" Color="{StaticResource AccentAltColor}" />
     <SolidColorBrush x:Key="AccentDeepBrush" Color="{StaticResource AccentDeepColor}" />
+    <!-- §3.3 admin thematic marker — warm "facility gold". Distinct from the
+         standard accent teal so an admin in the roster reads at a glance. -->
+    <Color x:Key="AdminAccentColor">#FFE0B65C</Color>
+    <SolidColorBrush x:Key="AdminAccentBrush" Color="{StaticResource AdminAccentColor}" />
     <SolidColorBrush x:Key="AccentTextBrush" Color="#FF061014" />
     <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
     <SolidColorBrush x:Key="MutedTextBrush" Color="{StaticResource MutedTextColor}" />
