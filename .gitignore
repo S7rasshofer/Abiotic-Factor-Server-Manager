@@ -12,7 +12,7 @@ FacilityOverseerData/
 [Oo]ut/
 # Published single-file exe + the off-OneDrive staging dir (built artifacts,
 # distributed via releases/CI, not committed).
-publish/
+
 publish-stage/
 *.publish.log
 publish/publish-hook.log
@@ -40,6 +40,7 @@ artifacts/
 .claude/settings.local.json
 .claude/**/cache/
 .claude/projects/
+.claude/worktrees/
 
 # ---- OS noise -----------------------------------------------------------
 .DS_Store

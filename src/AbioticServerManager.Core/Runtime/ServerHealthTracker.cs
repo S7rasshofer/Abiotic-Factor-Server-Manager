@@ -60,7 +60,11 @@ public static class ServerHealthSignals
 
         bool Has(string a) => text.Contains(a, StringComparison.OrdinalIgnoreCase);
 
-        if ((Has("corrupt") || Has("corruption")) && Has("world"))
+        // A genuine corrupt-save abort is always logged with a failure/fatal
+        // cue. Abiotic Factor's save-backup system also writes the word
+        // "corruption" on healthy servers (integrity checks, backup restores);
+        // those carry no fatal cue and must not block a playable server.
+        if (Has("corrupt") && Has("world") && HasFatalCue(text))
         {
             return "The world save appears to be corrupt.";
         }
@@ -89,6 +93,30 @@ public static class ServerHealthSignals
         }
 
         return null;
+    }
+
+    private static readonly string[] FatalCues =
+    [
+        "error", "fatal", "failed", "failure",
+        "cannot", "could not", "unable", "abort",
+    ];
+
+    /// <summary>
+    /// True when a line carries an explicit failure/abort cue. A bare mention
+    /// of a scary topic is not itself fatal - only a line that also says it
+    /// actually failed should be treated as a blocking signal.
+    /// </summary>
+    private static bool HasFatalCue(string text)
+    {
+        foreach (var cue in FatalCues)
+        {
+            if (text.Contains(cue, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 
@@ -144,7 +172,10 @@ public sealed class ServerHealthTracker
             return true;
         }
 
-        if (Health != ServerHealth.Blocked && ServerHealthSignals.IsReadiness(line.Text))
+        // A readiness signal always wins: if the server is demonstrably up for
+        // play, that beats an earlier blocking signal, which may have been a
+        // transient or misread condition the server recovered from.
+        if (ServerHealthSignals.IsReadiness(line.Text))
         {
             if (Health == ServerHealth.Online)
             {

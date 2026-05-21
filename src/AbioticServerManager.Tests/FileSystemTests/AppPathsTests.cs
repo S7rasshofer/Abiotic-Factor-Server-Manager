@@ -5,7 +5,7 @@ namespace AbioticServerManager.Tests.FileSystemTests;
 public class AppPathsTests
 {
     [Fact]
-    public void Single_root_layout_keeps_mutable_files_under_data_root()
+    public void Single_root_layout_keeps_every_managed_file_under_the_data_root()
     {
         var root = Path.Combine(Path.GetTempPath(), "fo-paths-" + Guid.NewGuid().ToString("N"));
         var paths = new AppPaths(root);
@@ -19,21 +19,32 @@ public class AppPathsTests
             paths.DefaultServerInstallDirectory);
         Assert.Equal(Path.Combine(root, "backups"), paths.BackupsRoot);
         Assert.Equal(Path.Combine(root, "logs"), paths.LogsDirectory);
+        Assert.Equal(Path.Combine(root, "players"), paths.PlayersDirectory);
     }
 
     [Theory]
-    [InlineData(true, "FacilityOverseerData")]
-    [InlineData(false, "FacilityOverseer")]
-    public void Data_root_resolver_prefers_portable_folder_when_app_directory_is_writable(
+    // Writable and not cloud-synced -> portable folder beside the exe.
+    [InlineData(true, false, true)]
+    // Not writable (e.g. Program Files) -> safe local app data folder.
+    [InlineData(false, false, false)]
+    // Writable but cloud-synced (OneDrive et al.) -> still falls back to local
+    // app data, so SteamCMD's steam.dll never lives on a synced volume.
+    [InlineData(true, true, false)]
+    public void Data_root_resolver_uses_the_portable_folder_only_when_safe(
         bool appDirectoryWritable,
-        string expectedLeaf)
+        bool appDirectorySynced,
+        bool expectsPortableFolder)
     {
         var appBase = Path.Combine(Path.GetTempPath(), "fo-app");
         var local = Path.Combine(Path.GetTempPath(), "fo-local");
 
-        var resolved = AppPaths.ResolveDataRoot(appBase, local, appDirectoryWritable);
+        var resolved = AppPaths.ResolveDataRoot(
+            appBase, local, appDirectoryWritable, appDirectorySynced);
 
-        Assert.Equal(Path.Combine(appDirectoryWritable ? appBase : local, expectedLeaf), resolved);
+        var expected = expectsPortableFolder
+            ? Path.Combine(appBase, "FacilityOverseerData")
+            : Path.Combine(local, "FacilityOverseer");
+        Assert.Equal(expected, resolved);
     }
 
     [Theory]
@@ -46,35 +57,6 @@ public class AppPathsTests
     [InlineData("", false)]
     public void Detects_synced_locations(string path, bool expected) =>
         Assert.Equal(expected, AppPaths.IsSyncedLocation(path));
-
-    [Fact]
-    public void Synced_root_redirects_tools_and_servers_but_keeps_config()
-    {
-        var oneDriveRoot = Path.Combine(
-            @"C:\Users\bob\OneDrive\Documents", "FacilityOverseerData");
-
-        var paths = new AppPaths(oneDriveRoot);
-
-        // Config stays put (small, sync-safe, avoids losing the user's worlds)...
-        Assert.Equal(oneDriveRoot, paths.DataRoot);
-        Assert.StartsWith(oneDriveRoot, paths.ConfigDirectory);
-        // ...but rewrite-heavy SteamCMD/servers move off the synced volume.
-        Assert.NotEqual(oneDriveRoot, paths.VolatileRoot);
-        Assert.False(AppPaths.IsSyncedLocation(paths.SteamCmdDirectory));
-        Assert.DoesNotContain("OneDrive", paths.SteamCmdDirectory);
-        Assert.DoesNotContain("OneDrive", paths.ServersDirectory);
-    }
-
-    [Fact]
-    public void Non_synced_root_keeps_everything_together()
-    {
-        var root = Path.Combine(Path.GetTempPath(), "fo-paths-" + Guid.NewGuid().ToString("N"));
-
-        var paths = new AppPaths(root);
-
-        Assert.Equal(root, paths.VolatileRoot);
-        Assert.Equal(Path.Combine(root, "tools", "steamcmd"), paths.SteamCmdDirectory);
-    }
 
     [Fact]
     public void Ensure_created_does_not_create_managed_server_payload_folder()

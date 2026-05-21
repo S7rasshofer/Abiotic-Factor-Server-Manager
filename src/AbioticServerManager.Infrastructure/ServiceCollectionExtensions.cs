@@ -7,7 +7,6 @@ using AbioticServerManager.Core.Schema;
 using AbioticServerManager.Core.Services;
 using AbioticServerManager.Infrastructure.FileSystem;
 using AbioticServerManager.Infrastructure.Install;
-using AbioticServerManager.Infrastructure.Migration;
 using AbioticServerManager.Infrastructure.Networking;
 using AbioticServerManager.Infrastructure.Persistence;
 using AbioticServerManager.Infrastructure.Process;
@@ -24,7 +23,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAppPaths, AppPaths>();
         services.AddSingleton<IInstanceStore, JsonInstanceStore>();
         services.AddSingleton<IPlayerRosterStore, JsonPlayerRosterStore>();
-        services.AddSingleton<ILegacyMigrationService, LegacyMigrationService>();
         services.AddSingleton<IBackupService, FileBackupService>();
         services.AddSingleton<IAdminListService, AdminListService>();
         services.AddSingleton<IPlayerBanService, PlayerBanService>();

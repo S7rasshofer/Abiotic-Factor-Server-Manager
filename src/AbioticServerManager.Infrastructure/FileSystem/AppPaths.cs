@@ -15,44 +15,21 @@ public sealed class AppPaths : IAppPaths
     public AppPaths(string dataRoot)
     {
         DataRoot = Path.GetFullPath(dataRoot);
-
-        // SteamCMD and the dedicated server are rewritten in place constantly and
-        // must NOT live in a synced folder (OneDrive et al. lock/dehydrate files
-        // mid-write -> "Failed to load steam.dll"). Config/backups/logs are small
-        // and safe to keep where the user put them, so only the volatile tool and
-        // server payloads are redirected to a plain local path.
-        VolatileRoot = IsSyncedLocation(DataRoot)
-            ? Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                ProductFolder)
-            : DataRoot;
     }
-
-    public AppPaths(string appDataRoot, string localAppDataRoot)
-        : this(appDataRoot)
-    {
-    }
-
-    public string DataRoot { get; }
 
     /// <summary>
-    /// Where rewrite-heavy payloads (SteamCMD, server files) live. Equals
-    /// <see cref="DataRoot"/> unless that root is a synced location, in which
-    /// case it points at a non-synced local path.
+    /// The single managed root. Everything the app owns - config, logs, backups,
+    /// rosters, SteamCMD and the dedicated server - lives under this one folder.
     /// </summary>
-    public string VolatileRoot { get; }
+    public string DataRoot { get; }
 
     public string ConfigDirectory => Path.Combine(DataRoot, "config");
 
-    public string ToolsDirectory => Path.Combine(VolatileRoot, "tools");
+    public string ToolsDirectory => Path.Combine(DataRoot, "tools");
 
-    public string ServersDirectory => Path.Combine(VolatileRoot, "servers");
+    public string ServersDirectory => Path.Combine(DataRoot, "servers");
 
     public string ManagedServerDirectory => Path.Combine(ServersDirectory, "abiotic-factor-dedicated");
-
-    public string AppDataRoot => DataRoot;
-
-    public string LocalAppDataRoot => DataRoot;
 
     public string SettingsFile => Path.Combine(ConfigDirectory, "settings.json");
 
@@ -81,12 +58,20 @@ public sealed class AppPaths : IAppPaths
         Directory.CreateDirectory(LogsDirectory);
     }
 
+    /// <summary>
+    /// Decides the one managed root. The portable folder beside the exe is used
+    /// only when that location is both writable and NOT cloud-synced. OneDrive,
+    /// Dropbox and Google Drive lock/dehydrate files mid-write, which corrupts
+    /// SteamCMD's <c>steam.dll</c>; in that case the whole root falls back to a
+    /// plain local folder so nothing is split across two places.
+    /// </summary>
     public static string ResolveDataRoot(
         string appBaseDirectory,
         string localApplicationDataRoot,
-        bool appDirectoryWritable)
+        bool appDirectoryWritable,
+        bool appDirectorySynced)
     {
-        return appDirectoryWritable
+        return appDirectoryWritable && !appDirectorySynced
             ? Path.Combine(appBaseDirectory, PortableDataFolder)
             : Path.Combine(localApplicationDataRoot, ProductFolder);
     }
@@ -95,7 +80,11 @@ public sealed class AppPaths : IAppPaths
     {
         var appBase = AppContext.BaseDirectory;
         var localRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return ResolveDataRoot(appBase, localRoot, CanWriteToDirectory(appBase));
+        return ResolveDataRoot(
+            appBase,
+            localRoot,
+            CanWriteToDirectory(appBase),
+            IsSyncedLocation(appBase));
     }
 
     /// <summary>

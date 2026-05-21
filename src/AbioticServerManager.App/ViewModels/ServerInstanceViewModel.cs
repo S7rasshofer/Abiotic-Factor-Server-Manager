@@ -250,6 +250,9 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
 
     public string HealthStatusText => _health.StatusText;
 
+    /// <summary>Drives the status dot colour - honest health, not "process exists".</summary>
+    public ServerHealth Health => _health.Health;
+
     public void OnServerStarted()
     {
         _health.OnProcessStarted();
@@ -274,6 +277,7 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
     {
         HealthDetail = _health.Reason;
         OnPropertyChanged(nameof(HealthStatusText));
+        OnPropertyChanged(nameof(Health));
         if (IsRunningState || _health.StatusText is "Blocked" or "Crashed")
         {
             StatusText = _health.StatusText;

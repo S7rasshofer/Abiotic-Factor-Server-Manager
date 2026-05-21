@@ -15,12 +15,6 @@ public interface IAppPaths
     string ServersDirectory { get; }
     string ManagedServerDirectory { get; }
 
-    /// <summary>Compatibility alias for legacy code and migration from old roaming state.</summary>
-    string AppDataRoot { get; }
-
-    /// <summary>Compatibility alias for legacy code and migration from old local state.</summary>
-    string LocalAppDataRoot { get; }
-
     string SettingsFile { get; }
     string InstancesFile { get; }
     string SchemaCacheFile { get; }

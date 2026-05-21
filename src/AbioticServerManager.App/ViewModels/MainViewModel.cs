@@ -24,7 +24,6 @@ public sealed partial class MainViewModel : ObservableObject
 {
     private readonly IInstanceStore _store;
     private readonly IPlayerRosterStore _rosterStore;
-    private readonly ILegacyMigrationService _migration;
     private readonly IDiagnosticsService _diagnostics;
     private readonly INetworkSetupService _networkSetup;
     private readonly ISteamCmdService _steamCmd;
@@ -51,7 +50,6 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(
         IInstanceStore store,
         IPlayerRosterStore rosterStore,
-        ILegacyMigrationService migration,
         IDiagnosticsService diagnostics,
         INetworkSetupService networkSetup,
         ISteamCmdService steamCmd,
@@ -66,7 +64,6 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _store = store;
         _rosterStore = rosterStore;
-        _migration = migration;
         _diagnostics = diagnostics;
         _networkSetup = networkSetup;
         _steamCmd = steamCmd;
@@ -184,8 +181,6 @@ public sealed partial class MainViewModel : ObservableObject
 
     public async Task InitializeAsync()
     {
-        await MaybeMigrateLegacyDataAsync();
-
         var loaded = await _store.LoadAsync();
         foreach (var model in loaded)
         {
@@ -211,46 +206,6 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         await MaybePromptInstallAsync();
-    }
-
-    private async Task MaybeMigrateLegacyDataAsync()
-    {
-        try
-        {
-            if (!_migration.ShouldOfferMigration(out var findings))
-            {
-                return;
-            }
-
-            var roots = string.Join("\n", findings.Select(f => "  " + f.Root));
-            var choice = MessageBox.Show(
-                "Facility Overseer found data from a previous install location:\n\n" +
-                roots + "\n\n" +
-                "Copy your saved world profiles into the current data folder? Your old " +
-                "folders are never moved or deleted - this only copies the small config. " +
-                "Large server files stay where they are (adopt them with the Server " +
-                "Folder field).\n\nImport now?",
-                "Facility Overseer - Import Previous Data",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-            if (choice != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            var result = await _migration.MigrateAsync(findings);
-            MessageBox.Show(
-                (result.ImportedConfig
-                    ? "Previous world profiles were imported."
-                    : "No profiles were imported (current data folder already has its own).") +
-                "\n\nA migration report was saved to:\n" + result.ReportPath,
-                "Facility Overseer - Import Previous Data");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Legacy migration check failed");
-        }
     }
 
     private async Task SeedRosterAsync(ServerInstanceViewModel world)

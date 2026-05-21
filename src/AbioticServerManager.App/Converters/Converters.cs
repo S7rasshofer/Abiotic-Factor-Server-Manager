@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 using AbioticServerManager.Core.Diagnostics;
+using AbioticServerManager.Core.Runtime;
 
 namespace AbioticServerManager.App.Converters;
 
@@ -29,6 +30,30 @@ public sealed class RunningToBrushConverter : IValueConverter
         value is true
             ? new SolidColorBrush(Color.FromRgb(0x79, 0xD6, 0x6B))
             : new SolidColorBrush(Color.FromRgb(0xA8, 0xB5, 0xC1));
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Colours the status dot from honest runtime health: grey = Stopped,
+/// yellow = Starting, green = Online, red = Blocked/Crashed. Unlike
+/// <see cref="RunningToBrushConverter"/> this reflects health, not just
+/// "process exists", so a running-but-blocked server is never shown green.
+/// </summary>
+public sealed class HealthToBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is ServerHealth health
+            ? health switch
+            {
+                ServerHealth.Online => new SolidColorBrush(Color.FromRgb(0x79, 0xD6, 0x6B)),
+                ServerHealth.Starting => new SolidColorBrush(Color.FromRgb(0xE6, 0xB8, 0x4B)),
+                ServerHealth.Blocked => new SolidColorBrush(Color.FromRgb(0xFF, 0x5F, 0x57)),
+                ServerHealth.Crashed => new SolidColorBrush(Color.FromRgb(0xFF, 0x5F, 0x57)),
+                _ => new SolidColorBrush(Color.FromRgb(0xA8, 0xB5, 0xC1)),
+            }
+            : Brushes.Gray;
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
         throw new NotSupportedException();

@@ -20,6 +20,7 @@
     <Window.Resources>
         <conv:SeverityToBrushConverter x:Key="SeverityToBrush" />
         <conv:RunningToBrushConverter x:Key="RunningToBrush" />
+        <conv:HealthToBrushConverter x:Key="HealthToBrush" />
         <conv:InverseBoolConverter x:Key="InverseBool" />
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibility" />
         <conv:StringToVisibilityConverter x:Key="StringToVisibility" />
@@ -132,7 +133,7 @@
                 <DataTemplate DataType="{x:Type vm:ServerInstanceViewModel}">
                     <StackPanel Orientation="Horizontal">
                         <Ellipse Width="9" Height="9" Margin="0,0,8,0"
-                                 Fill="{Binding IsRunningState, Converter={StaticResource RunningToBrush}}" />
+                                 Fill="{Binding Health, Converter={StaticResource HealthToBrush}}" />
                         <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
                     </StackPanel>
                 </DataTemplate>
@@ -164,7 +165,7 @@
                                                 HorizontalAlignment="Right">
                                         <Ellipse Width="11" Height="11" Margin="0,0,8,0"
                                                  VerticalAlignment="Center"
-                                                 Fill="{Binding IsRunningState, Converter={StaticResource RunningToBrush}}" />
+                                                 Fill="{Binding Health, Converter={StaticResource HealthToBrush}}" />
                                         <TextBlock Text="{Binding StatusText}" FontWeight="SemiBold" />
                                     </StackPanel>
                                 </DockPanel>
@@ -657,7 +658,7 @@
                                             <StackPanel Orientation="Horizontal">
                                                 <Ellipse Width="11" Height="11" Margin="0,0,8,0"
                                                          VerticalAlignment="Center"
-                                                         Fill="{Binding IsRunningState, Converter={StaticResource RunningToBrush}}" />
+                                                         Fill="{Binding Health, Converter={StaticResource HealthToBrush}}" />
                                                 <TextBlock Text="{Binding StatusText}" FontWeight="SemiBold" />
                                             </StackPanel>
                                             <TextBlock Text="{Binding HealthDetail}"

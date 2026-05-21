@@ -592,10 +592,36 @@ Each item: *Observed → Desired → Notes/seam.*
   Server/Network tab as copyable text. **Do not invent** a code format — confirm
   from a real hosted session first.
 
+### 17.8 Platform column: show “Steam (PC)” vs “Console/Other”, not “EOSPlus”
+- **Accepted future change** (user‑requested 2026‑05‑19; deferred — do **not**
+  implement yet).
+- **Observed (verified against the real log):** every player’s `Login request`
+  logs `platform: EOSPlus` and an opaque `userId: EOSPlus:UNKNOWN/INVALID
+  [0x…]`. A whole‑log grep for `PSN/XBL/Playstation/Xbox/Sony/Microsoft/
+  ExternalAccountType` returned **nothing** — EOS deliberately hides the origin
+  platform behind the cross‑play Product User ID.
+- **Desired:** replace the meaningless `EOSPlus` value in the roster Platform
+  column with a derived label:
+  - `ConnectID` is a SteamID64 (17 digits, `7656…`) ⇒ **“Steam (PC)”**
+  - otherwise ⇒ **“Console / Other (EOS)”** (Epic‑PC, PS5, or Xbox —
+    indistinguishable from logs by design).
+- **Hard limit (set expectations):** true **PlayStation vs Xbox vs Epic‑PC**
+  per‑player detection is **not possible from the server log**. It would require
+  the EOS external‑account‑type via AF’s remote console (RCON) — unconfirmed and
+  possibly unavailable from a dedicated server. Cross‑ref §15, §17.7.
+- **Seam (pure, testable, low‑risk):** add a pure classifier in Core (e.g.
+  `PlayerPlatform.Classify(connectId, steamId64)`) used by
+  `PlayerRosterParser`/`PlayerRosterTracker`; `PlayerRosterEntry` already carries
+  `SteamId64`/`PrimaryId`, so the existing `IsValidSteamId`‑style check is enough.
+  Keep the raw `EOSPlus`/ConnectID available as a tooltip/secondary for support.
+  No new IO; one converter‑free string + roster tests mirroring the existing
+  `PlayerRosterTrackerTests`.
+
 ### Suggested priority for the refactor
 1. **17.6** (status color correctness — it actively misleads: green = broken).
 2. **17.5** (hide‑don’t‑delete Advanced — avoid regressing the loss‑less net).
-3. **17.1/17.2** (diagnostic card compaction + centering — quick UX win).
-4. **17.3/17.4** (tab color system — cosmetic, do together).
-5. **17.7** (room‑code research — gather evidence before committing).
-6. **15.1** (RCON command palette + announce box — with the RCON workstream).
+3. **17.8** (Steam‑vs‑Console platform label — small, pure, high user value).
+4. **17.1/17.2** (diagnostic card compaction + centering — quick UX win).
+5. **17.3/17.4** (tab color system — cosmetic, do together).
+6. **17.7** (room‑code research — gather evidence before committing).
+7. **15.1** (RCON command palette + announce box — with the RCON workstream).
