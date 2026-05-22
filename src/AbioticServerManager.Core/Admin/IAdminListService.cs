@@ -3,19 +3,24 @@ using AbioticServerManager.Core.Models;
 namespace AbioticServerManager.Core.Admin;
 
 /// <summary>
-/// Reads and writes the server's <c>Admins.ini</c> (a flat list of SteamID64s).
-/// Non-ID content (comments, blank lines) is preserved so hand-written notes are
-/// never lost — consistent with the project's loss-less ethos.
+/// Reads and writes the dedicated server's sectioned <c>Admin.ini</c>
+/// (<c>[Moderators]</c> + <c>[BannedPlayers]</c>). The §2.2 unifier — both the
+/// Admin tab editor and the Ban/Unban commands target this single file via
+/// the pure <see cref="AdminIniModeratorEditor"/> / <see cref="AdminIniBanEditor"/>
+/// helpers. Comments, blank lines, and example placeholders are preserved.
 /// </summary>
 public interface IAdminListService
 {
-    /// <summary>Resolves where <c>Admins.ini</c> should live for this world, even if blank.</summary>
+    /// <summary>Resolves where the sectioned <c>Admin.ini</c> should live for this world, even if blank.</summary>
     string ResolveAdminIniPath(ServerInstance instance);
 
-    /// <summary>The SteamID64 admin entries currently in the file (empty if none/missing).</summary>
+    /// <summary>SteamID64 entries from the file's <c>[Moderators]</c> section (empty if none/missing).</summary>
     IReadOnlyList<string> Load(string path);
 
-    /// <summary>Writes the admin set, preserving any comment/blank lines already in the file.</summary>
+    /// <summary>
+    /// Rewrites the <c>[Moderators]</c> section in place, preserving everything else
+    /// (comments, blank lines, the <c>[BannedPlayers]</c> section, examples) byte-for-byte.
+    /// </summary>
     void Save(string path, IReadOnlyList<string> adminIds);
 
     /// <summary>True when <paramref name="value"/> is a syntactically valid SteamID64.</summary>

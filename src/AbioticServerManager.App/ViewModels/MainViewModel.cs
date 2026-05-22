@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Reflection;
 using System.Windows;
+using AbioticServerManager.App.Views;
 using AbioticServerManager.Core.Admin;
 using AbioticServerManager.Core.Backup;
 using AbioticServerManager.Core.Diagnostics;
@@ -24,6 +25,11 @@ public sealed partial class MainViewModel : ObservableObject
 {
     private readonly IInstanceStore _store;
     private readonly IPlayerRosterStore _rosterStore;
+    private readonly IInternalIpSnapshotStore _ipSnapshots;
+    private readonly IPublicIpProbe _publicIpProbe;
+    private readonly IResetManagedDataService _resetManagedData;
+    private readonly IWorldIdentityMigrationService _worldIdentityMigration;
+    private readonly ILegacyMigrationService _migration;
     private readonly IDiagnosticsService _diagnostics;
     private readonly INetworkSetupService _networkSetup;
     private readonly ISteamCmdService _steamCmd;
@@ -33,6 +39,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly IAdminListService _adminList;
     private readonly IPlayerBanService _bans;
     private readonly IServerInstallStateService _serverInstallState;
+    private readonly IWorldIntegrityInspector _worldIntegrity;
     private readonly IAppPaths _paths;
     private readonly ILogger<MainViewModel> _logger;
     private bool _installPromptShown;
@@ -50,6 +57,11 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(
         IInstanceStore store,
         IPlayerRosterStore rosterStore,
+        IInternalIpSnapshotStore ipSnapshots,
+        IPublicIpProbe publicIpProbe,
+        IResetManagedDataService resetManagedData,
+        IWorldIdentityMigrationService worldIdentityMigration,
+        ILegacyMigrationService migration,
         IDiagnosticsService diagnostics,
         INetworkSetupService networkSetup,
         ISteamCmdService steamCmd,
@@ -59,11 +71,17 @@ public sealed partial class MainViewModel : ObservableObject
         IAdminListService adminList,
         IPlayerBanService bans,
         IServerInstallStateService serverInstallState,
+        IWorldIntegrityInspector worldIntegrity,
         IAppPaths paths,
         ILogger<MainViewModel> logger)
     {
         _store = store;
         _rosterStore = rosterStore;
+        _ipSnapshots = ipSnapshots;
+        _publicIpProbe = publicIpProbe;
+        _resetManagedData = resetManagedData;
+        _worldIdentityMigration = worldIdentityMigration;
+        _migration = migration;
         _diagnostics = diagnostics;
         _networkSetup = networkSetup;
         _steamCmd = steamCmd;
@@ -73,14 +91,39 @@ public sealed partial class MainViewModel : ObservableObject
         _adminList = adminList;
         _bans = bans;
         _serverInstallState = serverInstallState;
+        _worldIntegrity = worldIntegrity;
         _paths = paths;
         _logger = logger;
 
         _processes.LogReceived += OnLogReceived;
         _processes.RuntimeChanged += OnRuntimeChanged;
+        Worlds.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasWorlds));
     }
 
     public ObservableCollection<ServerInstanceViewModel> Worlds { get; } = [];
+
+    /// <summary>True once at least one world exists. Drives the first-run
+    /// clean-slate empty state versus the horizontal world tab strip.</summary>
+    public bool HasWorlds => Worlds.Count > 0;
+
+    /// <summary>
+    /// Whether the Create / Clone / Delete / Save cluster on the title card is
+    /// shown. Expanded on a clean slate (no worlds); slides away once the first
+    /// world exists. The user toggles it back by clicking the title.
+    /// </summary>
+    [ObservableProperty]
+    private bool _areWorldActionsExpanded;
+
+    [RelayCommand]
+    private void ToggleWorldActions() =>
+        AreWorldActionsExpanded = !AreWorldActionsExpanded;
+
+    /// <summary>
+    /// True once the shared dedicated server is installed and launchable. Drives
+    /// the first-run flow — the server is prepared before any world is created.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isServerPrepared;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(StartServerCommand))]
@@ -179,21 +222,226 @@ public sealed partial class MainViewModel : ObservableObject
         BusyIsIndeterminate = true;
     }
 
+    /// <summary>
+    /// Empty when the LAN IPv4 has not changed since the last launch (or this is
+    /// the first run). Populated with a single warning sentence when it HAS
+    /// changed — port forwarding may need attention.
+    /// </summary>
+    [ObservableProperty]
+    private string _internalIpChangeBannerText = "";
+
+    public bool HasInternalIpChangeBanner => !string.IsNullOrEmpty(InternalIpChangeBannerText);
+
+    partial void OnInternalIpChangeBannerTextChanged(string value) =>
+        OnPropertyChanged(nameof(HasInternalIpChangeBanner));
+
+    [RelayCommand]
+    private void DismissInternalIpChangeBanner() => InternalIpChangeBannerText = "";
+
+    /// <summary>This PC's current best LAN IPv4 (the address friends on the LAN reach).</summary>
+    [ObservableProperty]
+    private string _lanIpv4 = "—";
+
+    /// <summary>This PC's public IPv4 (what friends on the internet reach via port forwarding).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PublicIpv4Display))]
+    private string _publicIpv4 = "checking…";
+
+    /// <summary>
+    /// Whether the public IP is revealed. Hidden by default — it is moderately
+    /// sensitive — and toggled from a right-click "Show / Hide" menu.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PublicIpv4Display))]
+    [NotifyPropertyChangedFor(nameof(PublicIpToggleLabel))]
+    private bool _isPublicIpVisible;
+
+    /// <summary>The public IP for display — the address when revealed, a mask otherwise.</summary>
+    public string PublicIpv4Display => IsPublicIpVisible ? PublicIpv4 : "••••••••";
+
+    /// <summary>Right-click menu label — flips between Show and Hide.</summary>
+    public string PublicIpToggleLabel =>
+        IsPublicIpVisible ? "Hide public IP" : "Show public IP";
+
+    [RelayCommand]
+    private void TogglePublicIpVisibility() => IsPublicIpVisible = !IsPublicIpVisible;
+
+    /// <summary>
+    /// §3.1b: composes router-agnostic "lock this IP" guidance, copies it to
+    /// the clipboard, and shows it in a dismissible dialog so the user can
+    /// follow along while opening the router admin page.
+    /// </summary>
+    [RelayCommand]
+    private void ShowLanIpLockGuidance()
+    {
+        var ctx = new LanIpLockContext
+        {
+            Ipv4 = string.IsNullOrWhiteSpace(LanIpv4) || LanIpv4 == "—" ? "" : LanIpv4,
+            Hostname = Environment.MachineName,
+            MacAddress = "",  // Ipv4Candidate doesn't carry MAC; we surface a fallback hint instead.
+            Gateway = _bestLanCandidate?.GatewayAddress ?? "",
+            AdapterDescription = _bestLanCandidate?.InterfaceDescription ?? "",
+        };
+
+        var text = LanIpLockGuidance.Compose(ctx);
+
+        try
+        {
+            Clipboard.SetText(text);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not copy lock-IP guidance to clipboard");
+        }
+
+        MessageBox.Show(
+            text + "\n\n(Copied to clipboard.)",
+            "Facility Overseer — Lock LAN IP",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+    }
+
+    [RelayCommand]
+    private async Task RefreshPublicIpAsync()
+    {
+        PublicIpv4 = "checking…";
+        try
+        {
+            var probed = await _publicIpProbe.ProbeAsync();
+            PublicIpv4 = string.IsNullOrEmpty(probed) ? "unavailable" : probed;
+        }
+        catch
+        {
+            PublicIpv4 = "unavailable";
+        }
+    }
+
+    /// <summary>
+    /// Erases everything Facility Overseer manages — both the durable
+    /// <c>DataRoot</c> tree AND the volatile SteamCMD/server tree — in one
+    /// confirmed action. The data-root choice is preserved so the user keeps
+    /// the location they picked on first run.
+    /// </summary>
+    [RelayCommand]
+    private async Task ResetManagedDataAsync()
+    {
+        if (Worlds.Any(w => w.IsRunningState))
+        {
+            MessageBox.Show(
+                "Stop all running worlds before resetting managed data.",
+                "Facility Overseer — Reset Managed Data",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var confirm = MessageBox.Show(
+            "This deletes EVERYTHING Facility Overseer manages:\n" +
+            "  • All world profiles, sandbox settings, admins, bans, roster\n" +
+            "  • Backups\n" +
+            "  • SteamCMD and the dedicated server install\n" +
+            "  • Logs\n\n" +
+            $"DataRoot:     {_paths.DataRoot}\n" +
+            "Anything outside these managed folders is left alone.\n\n" +
+            "Your data-root choice (where the new clean state will live) is " +
+            "preserved.\n\nProceed?",
+            "Facility Overseer — Reset Everything Managed",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await _resetManagedData.ResetAsync();
+
+            // Clear in-memory world state so the UI matches disk after reset.
+            Worlds.Clear();
+            SelectedWorld = null;
+            AreWorldActionsExpanded = true;
+
+            var summary = result.Success
+                ? $"Removed {result.RemovedPaths.Count} item(s)."
+                : $"Removed {result.RemovedPaths.Count} item(s); " +
+                  $"{result.FailedPaths.Count} could not be removed (locked or in use).";
+
+            MessageBox.Show(
+                summary + "\n\nReport saved to:\n" + result.ReportPath +
+                "\n\nRestart Facility Overseer to start fresh.",
+                "Facility Overseer — Reset Managed Data",
+                MessageBoxButton.OK,
+                result.Success ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Reset managed data failed");
+            MessageBox.Show(
+                "The reset could not complete:\n\n" + ex.Message,
+                "Facility Overseer — Reset Managed Data",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
     public async Task InitializeAsync()
     {
+        await MaybeMigrateLegacyDataAsync();
+        await DetectInternalIpChangeAsync();
+        _ = ProbePublicIpInBackgroundAsync(); // best-effort; do not block startup
+
         var loaded = await _store.LoadAsync();
+        var migratedAny = false;
         foreach (var model in loaded)
         {
+            // §2.1: ensure per-world INIs are under <DataRoot>/worlds/<id>/config/
+            // before any downstream service (sandbox load, admin list, launch args)
+            // reads from instance.SandboxIniPath / AdminIniPath.
+            var migration = await _worldIdentityMigration.MigrateIfNeededAsync(model);
+            if (migration.HadWork)
+            {
+                migratedAny = true;
+                _logger.LogInformation(
+                    "§2.1 migration for world {Id}: copied {Count} file(s)",
+                    model.Id,
+                    migration.CopiedDescriptions.Count);
+            }
+
             Worlds.Add(CreateWorldVm(model));
         }
 
+        if (migratedAny)
+        {
+            // Persist updated SandboxIniPath / AdminIniPath so the new layout
+            // sticks across launches.
+            try
+            {
+                await _store.SaveAsync([.. loaded]);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not persist §2.1 migration path updates");
+            }
+        }
+
+        // First launch is a deliberate clean slate (UI Tweaks A6): no auto-created
+        // world and no world tabs — just the title card and an empty-state prompt.
+        // The Create / Clone / Delete / Save cluster stays open until the user
+        // makes their first world.
+        AreWorldActionsExpanded = Worlds.Count == 0;
+
+        // The dedicated server is a shared, world-independent tool. Evaluate it up
+        // front so the UI leads with server preparation — the server is downloaded
+        // before any world exists (UI Tweaks F6).
+        RefreshServerInstallState();
+
         if (Worlds.Count == 0)
         {
-            // First launch: stand up a ready-to-go world so the user only has to
-            // rename it. The staged-config flow means this creates a profile and
-            // editable sandbox WITHOUT an Abiotic Factor save folder, so it does
-            // not reintroduce the partial-world-save bug.
-            await AddWorldAsync("My World");
+            // Clean slate: still prompt to prepare the server (server before world).
+            await MaybePromptInstallAsync();
             return;
         }
 
@@ -206,6 +454,106 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         await MaybePromptInstallAsync();
+    }
+
+    private async Task MaybeMigrateLegacyDataAsync()
+    {
+        try
+        {
+            if (!_migration.ShouldOfferMigration(out var findings))
+            {
+                return;
+            }
+
+            var roots = string.Join("\n", findings.Select(f => "  " + f.Root));
+            var choice = MessageBox.Show(
+                "Facility Overseer found data from a previous install location:\n\n" +
+                roots + "\n\n" +
+                "Copy your saved world profiles into the current data folder? Your old " +
+                "folders are never moved or deleted - this only copies the small config. " +
+                "Large server files stay where they are (adopt them with the Server " +
+                "Folder field).\n\nImport now?",
+                "Facility Overseer - Import Previous Data",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (choice != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            var result = await _migration.MigrateAsync(findings);
+            MessageBox.Show(
+                (result.ImportedConfig
+                    ? "Previous world profiles were imported."
+                    : "No profiles were imported (current data folder already has its own).") +
+                "\n\nA migration report was saved to:\n" + result.ReportPath,
+                "Facility Overseer - Import Previous Data");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Legacy migration check failed");
+        }
+    }
+
+    /// <summary>
+    /// §3.1b cache of the best LAN candidate's full detail (address, gateway,
+    /// adapter description) so the "Lock this IP" command can compose the
+    /// guidance without re-probing.
+    /// </summary>
+    private Ipv4Candidate? _bestLanCandidate;
+
+    private async Task DetectInternalIpChangeAsync()
+    {
+        try
+        {
+            var selection = _networkSetup.DetectLanIpv4();
+            var current = selection.Best;
+            LanIpv4 = string.IsNullOrEmpty(current) ? "—" : current;
+            _bestLanCandidate = selection.UsableCandidates.FirstOrDefault();
+
+            var lastSeen = await _ipSnapshots.LoadAsync();
+            var change = InternalIpChangeTracker.Detect(lastSeen, current);
+
+            InternalIpChangeBannerText = change switch
+            {
+                InternalIpChange.Changed =>
+                    $"Your LAN IPv4 changed from {lastSeen!.Ipv4} to {current}. If you " +
+                    "have router port forwarding pinned to the old address, friends may " +
+                    "no longer be able to join. Re-check the Network tab.",
+                InternalIpChange.Lost when lastSeen is not null =>
+                    $"No LAN IPv4 detected (last seen {lastSeen.Ipv4}). Reconnect to your " +
+                    "network and re-check the Network tab.",
+                _ => "",
+            };
+
+            // Only refresh the snapshot when we actually have a current IP — never
+            // clobber a known-good last-seen with a transient nothing.
+            var snapshot = InternalIpChangeTracker.SnapshotFor(current, DateTimeOffset.UtcNow);
+            if (snapshot is not null)
+            {
+                await _ipSnapshots.SaveAsync(snapshot);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Detection is best-effort UX; never block startup on it.
+            _logger.LogWarning(ex, "Internal IP change detection failed");
+        }
+    }
+
+    private async Task ProbePublicIpInBackgroundAsync()
+    {
+        try
+        {
+            var probed = await _publicIpProbe.ProbeAsync();
+            PublicIpv4 = string.IsNullOrEmpty(probed) ? "unavailable" : probed;
+        }
+        catch (Exception ex)
+        {
+            PublicIpv4 = "unavailable";
+            _logger.LogDebug(ex, "Initial public-IP probe failed (best-effort)");
+        }
     }
 
     private async Task SeedRosterAsync(ServerInstanceViewModel world)
@@ -256,7 +604,7 @@ public sealed partial class MainViewModel : ObservableObject
             _logTails[world.Id] = AbioticServerLogTail.Start(
                 world.Id,
                 installPath,
-                line => Dispatcher().BeginInvoke(() => OnTailLine(world, line)),
+                lines => Dispatcher().BeginInvoke(() => OnTailLines(world, lines)),
                 _logger);
         }
         catch (Exception ex)
@@ -273,10 +621,16 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    private void OnTailLine(ServerInstanceViewModel world, ServerLogLine line)
+    private void OnTailLines(ServerInstanceViewModel world, IReadOnlyList<ServerLogLine> lines)
     {
-        world.ApplyHealth(line);
-        if (world.ApplyRosterActivity(line))
+        // Process the whole tick's batch, then refresh the roster UI ONCE.
+        // Refreshing per line saturated the UI thread on a join burst.
+        foreach (var line in lines)
+        {
+            world.ApplyHealth(line);
+        }
+
+        if (world.ApplyRosterActivityBatch(lines))
         {
             ScheduleRosterSave(world);
         }
@@ -288,23 +642,18 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private async Task MaybePromptInstallAsync()
     {
-        if (_installPromptShown || SelectedWorld is null)
+        if (_installPromptShown)
         {
             return;
         }
 
         _installPromptShown = true;
 
-        if (string.IsNullOrWhiteSpace(SelectedWorld.InstallPath))
-        {
-            SelectedWorld.InstallPath = _paths.ManagedServerDirectory;
-            await SaveAsync();
-        }
-
-        var state = _serverInstallState.Evaluate(SelectedWorld.Model);
+        // The dedicated server is world-independent — evaluate the shared managed
+        // install so this prompt can lead the first run before any world exists.
+        var state = RefreshServerInstallState();
         if (state.IsLaunchable)
         {
-            RefreshInstallStatus(SelectedWorld);
             return;
         }
 
@@ -336,8 +685,48 @@ public sealed partial class MainViewModel : ObservableObject
     };
 
     [RelayCommand]
-    private async Task CreateWorld() =>
-        await AddWorldAsync($"World {Worlds.Count + 1}");
+    private async Task CreateWorld()
+    {
+        // UI Tweaks A7: prompt for a name and difficulty before creating.
+        var dialog = new CreateWorldDialog($"World {Worlds.Count + 1}")
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        var world = await AddWorldAsync(dialog.WorldName);
+        await ApplyCreateWorldDifficultyAsync(world, dialog.GameDifficulty);
+    }
+
+    /// <summary>
+    /// Writes the difficulty chosen in the Create World dialog into the new
+    /// world's freshly-staged SandboxSettings.ini — the GameDifficulty key in
+    /// the World category. No-op if the sandbox exposes no such key.
+    /// </summary>
+    private static async Task ApplyCreateWorldDifficultyAsync(
+        ServerInstanceViewModel world, string difficultyValue)
+    {
+        if (world.Sandbox is not { } sandbox)
+        {
+            return;
+        }
+
+        var difficulty = sandbox.Categories
+            .SelectMany(c => c.Settings)
+            .FirstOrDefault(s =>
+                string.Equals(s.Key, "GameDifficulty", StringComparison.OrdinalIgnoreCase));
+        if (difficulty is null)
+        {
+            return;
+        }
+
+        difficulty.StringValue = difficultyValue;
+        await sandbox.SaveAsync();
+    }
 
     /// <summary>
     /// Shared world-creation path used by the Create World button and by first-run
@@ -362,6 +751,10 @@ public sealed partial class MainViewModel : ObservableObject
         await SeedRosterAsync(vm);
         await MaybePromptInstallAsync();
         await AutoLoadSandboxAsync(vm);
+
+        // UI Tweaks A3: once a world exists, tuck the title-card action cluster
+        // away. Clicking the FACILITY OVERSEER title brings it back.
+        AreWorldActionsExpanded = false;
         return vm;
     }
 
@@ -412,6 +805,14 @@ public sealed partial class MainViewModel : ObservableObject
         await AutoBackupAsync(toRemove, "before-delete");
         Worlds.Remove(toRemove);
         SelectedWorld = Worlds.FirstOrDefault();
+
+        // UI Tweaks A6: deleting the last world returns to the clean slate, so
+        // re-open the title-card action cluster.
+        if (Worlds.Count == 0)
+        {
+            AreWorldActionsExpanded = true;
+        }
+
         await SaveAsync();
     }
 
@@ -628,11 +1029,6 @@ public sealed partial class MainViewModel : ObservableObject
             IReadOnlyList<string> lines = [.. world.RouterChecklist];
             Clipboard.SetText(string.Join(Environment.NewLine, lines));
 
-            world.Model.Network.LastRouterChecklistIpv4 = status.SuggestedRouterTarget;
-            world.Model.Network.LastRouterChecklistCopiedAtUtc = DateTimeOffset.UtcNow;
-            ApplyNetworkSetupStatus(world, await _networkSetup.InspectAsync(world.Model));
-            await SaveAsync();
-
             var target = status.SuggestedRouterTarget ?? "the current LAN IPv4";
             MessageBox.Show(
                 $"Router checklist copied for {target}. Reserve this IP in DHCP.",
@@ -687,7 +1083,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    private static void ApplyNetworkSetupStatus(
+    private void ApplyNetworkSetupStatus(
         ServerInstanceViewModel world,
         NetworkSetupStatus status)
     {
@@ -715,13 +1111,11 @@ public sealed partial class MainViewModel : ObservableObject
             ? target
             : "No LAN IPv4 address detected";
         world.ServerExecutableText = status.ServerExecutablePath ?? "Dedicated server executable not found";
-        world.LastRouterChecklistText = status.LastRouterChecklistIpv4 is { Length: > 0 } lastIp
-            ? $"{lastIp} copied {FormatUtc(status.LastRouterChecklistCopiedAtUtc)}"
-            : "No router checklist copied for this world yet.";
         world.LastFirewallRepairText = status.LastFirewallRepairAtUtc is { } repairedAt
             ? $"Last repaired {FormatUtc(repairedAt)}"
             : "No firewall repair has been run for this world yet.";
 
+        world.FirewallRulesConfigured = status.AreFirewallRulesConfigured;
         world.FirewallSummaryText = status.AreFirewallRulesConfigured
             ? "All required Facility Overseer firewall rules exist and verified correctly."
             : "One or more required Facility Overseer firewall rules are missing or incorrect. " +
@@ -775,6 +1169,42 @@ public sealed partial class MainViewModel : ObservableObject
             ? string.Join("  ", notes)
             : "Network setup check complete. Router forwarding status is unknown until you " +
               "test from outside your network.";
+
+        // §4.3 / §4.7: network state just changed — refresh guidance + score.
+        ApplyNetworkConfidence(world, status);
+        RefreshGuidance(world);
+    }
+
+    /// <summary>§4.7: scores how ready this world's network setup is to host.</summary>
+    private void ApplyNetworkConfidence(ServerInstanceViewModel world, NetworkSetupStatus status)
+    {
+        var gamePortBound = status.PortBindings.Any(p => p.Port == world.GamePort && p.IsListening);
+        var publicScope = IpAddressClassifier.Classify(PublicIpv4);
+
+        var result = NetworkConfidenceScoring.Score(new NetworkConfidenceInputs
+        {
+            HasLanIpv4 = LanIpv4 is { Length: > 0 } lan && lan != "—",
+            FirewallRulesConfigured = status.AreFirewallRulesConfigured,
+            A2SLocalResponded = gamePortBound,
+            HasPublicIpv4 = publicScope is Ipv4Scope.Public or Ipv4Scope.CarrierGradeNat,
+            LooksLikeCgnat = publicScope == Ipv4Scope.CarrierGradeNat,
+            IsLanOnly = world.LanOnly,
+        });
+
+        world.NetworkConfidenceSummary = $"{result.Score} / 100  —  {result.Band}";
+        world.NetworkConfidenceStrengths.Clear();
+        foreach (var strength in result.Strengths)
+        {
+            world.NetworkConfidenceStrengths.Add(strength);
+        }
+
+        world.NetworkConfidenceLifts.Clear();
+        foreach (var lift in result.Lifts)
+        {
+            world.NetworkConfidenceLifts.Add(lift);
+        }
+
+        world.HasNetworkConfidence = true;
     }
 
     private static string FormatUtc(DateTimeOffset? timestamp) =>
@@ -821,7 +1251,6 @@ public sealed partial class MainViewModel : ObservableObject
             lines.AddRange(candidates.Select(c => "- " + c));
         }
 
-        lines.Add($"Last router checklist IP: {status.LastRouterChecklistIpv4 ?? "none"}");
         lines.Add("Firewall rules:");
         lines.Add("- Game: " + CheckSnapshot(status, "firewall.game"));
         lines.Add("- Query: " + CheckSnapshot(status, "firewall.query"));
@@ -992,7 +1421,16 @@ public sealed partial class MainViewModel : ObservableObject
         {
             CreateFirewallRulesCommand.NotifyCanExecuteChanged();
         }
+
+        // §4.3: health drives recommended actions (e.g. "restart after crash").
+        if (e.PropertyName is nameof(ServerInstanceViewModel.Health))
+        {
+            RefreshGuidance(SelectedWorld);
+        }
     }
+
+    // §4.3: a new LAN IPv4 changes the "connect to network" recommendation.
+    partial void OnLanIpv4Changed(string value) => RefreshGuidance(SelectedWorld);
 
     // ===================== Admin list (plan §6.3) =====================
 
@@ -1007,11 +1445,18 @@ public sealed partial class MainViewModel : ObservableObject
                 world.AdminIniPath = path;
             }
 
+            var moderators = _adminList.Load(path);
             world.Admins.Clear();
-            foreach (var id in _adminList.Load(path))
+            foreach (var id in moderators)
             {
                 world.Admins.Add(id);
             }
+
+            // §3.2/§3.3 — push the moderator + banned id sets into the world VM so
+            // the roster gets its admin marker and banned ids never leak into
+            // the live roster collection.
+            var bans = _bans.ListBans(world.Model);
+            world.UpdateModerationLists(moderators, bans);
 
             world.AdminStatusText = world.Admins.Count == 0
                 ? "No admins yet. Add a player's SteamID64 (17 digits) below."
@@ -1333,18 +1778,36 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Opens the Player Detail tab for the double-clicked roster row. The
+    /// double-click has already set <c>SelectedRosterPlayer</c>, so no
+    /// parameter is needed.
+    /// </summary>
+    [RelayCommand]
+    private void ShowPlayerDetail()
+    {
+        var world = SelectedWorld;
+        if (world?.SelectedRosterPlayer is { } row)
+        {
+            world.ShowPlayerDetail(row);
+        }
+    }
+
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private async Task BanSelectedPlayer()
     {
         var world = SelectedWorld;
-        var player = world?.SelectedRosterPlayer;
-        if (world is null || player is null)
+        var row = world?.SelectedRosterPlayer;
+        if (world is null || row is null)
         {
             MessageBox.Show(
                 "Select a player in the roster first.", "Facility Overseer - Ban");
             return;
         }
 
+        // §3.3: the row VM is decoration only — ban operates on the underlying
+        // captured id, never on the visual.
+        var player = row.Entry;
         var id = !string.IsNullOrWhiteSpace(player.SteamId64)
             ? player.SteamId64!
             : player.PrimaryId ?? "";
@@ -1368,6 +1831,9 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        // §3.2: surface the new ban on the Banished page + filter the roster.
+        RefreshAdmins(world);
+
         if (_processes.IsRunning(world.Id) &&
             MessageBox.Show(
                 result.Message + "\n\nRestart the server now to disconnect and enforce " +
@@ -1388,19 +1854,48 @@ public sealed partial class MainViewModel : ObservableObject
     private void UnbanSelectedPlayer()
     {
         var world = SelectedWorld;
-        var player = world?.SelectedRosterPlayer;
-        if (world is null || player is null)
+        var row = world?.SelectedRosterPlayer;
+        if (world is null || row is null)
         {
             MessageBox.Show(
                 "Select a player in the roster first.", "Facility Overseer - Unban");
             return;
         }
 
+        var player = row.Entry;
         var id = !string.IsNullOrWhiteSpace(player.SteamId64)
             ? player.SteamId64!
             : player.PrimaryId ?? "";
 
         var result = _bans.Unban(world.Model, id);
+        if (result.Success)
+        {
+            // §3.2: re-derive the banned set so the Banished page row drops.
+            RefreshAdmins(world);
+        }
+        MessageBox.Show(result.Message, "Facility Overseer - Unban");
+    }
+
+    /// <summary>
+    /// §3.2: lift a ban from the Banished page directly. Operates on the
+    /// underlying id row, not on the roster (banned ids are deliberately
+    /// hidden from the roster).
+    /// </summary>
+    [RelayCommand]
+    private void UnbanFromBanished(string? id)
+    {
+        var world = SelectedWorld;
+        if (world is null || string.IsNullOrWhiteSpace(id))
+        {
+            return;
+        }
+
+        var result = _bans.Unban(world.Model, id);
+        if (result.Success)
+        {
+            RefreshAdmins(world);
+        }
+
         MessageBox.Show(result.Message, "Facility Overseer - Unban");
     }
 
@@ -1588,15 +2083,198 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        var state = _serverInstallState.Evaluate(world.Model);
+
         // While running, the health tracker owns StatusText (Starting/Online/
         // Blocked/Crashed). Only set it from install state when stopped.
         if (!world.IsRunningState)
         {
-            var stopped = _serverInstallState.Evaluate(world.Model);
-            world.StatusText = stopped.IsLaunchable ? "Stopped" : stopped.ValidationMessage;
+            world.StatusText = state.IsLaunchable ? "Stopped" : state.ValidationMessage;
         }
 
-        RefreshHeaderInfo(_serverInstallState.Evaluate(world.Model));
+        RefreshHeaderInfo(state);
+        RefreshGuidance(world, state);
+    }
+
+    /// <summary>
+    /// Evaluates the shared managed dedicated-server install — world-independent,
+    /// because the server is one disposable tool, not part of any world — and
+    /// refreshes the header plus <see cref="IsServerPrepared"/>. Lets the server
+    /// be prepared before the first world is created.
+    /// </summary>
+    private ServerInstallState RefreshServerInstallState()
+    {
+        var state = _serverInstallState.Evaluate(
+            new ServerInstance { InstallPath = _paths.ManagedServerDirectory });
+        IsServerPrepared = state.IsLaunchable;
+        RefreshHeaderInfo(state);
+        return state;
+    }
+
+    /// <summary>
+    /// §4.3 / §4.5: re-runs the world-integrity inspection and rebuilds the
+    /// ranked recommended-actions list for one world. Cheap enough (a few
+    /// File.Exists probes) to hang off the central RefreshInstallStatus hub.
+    /// </summary>
+    private void RefreshGuidance(ServerInstanceViewModel world, ServerInstallState installState)
+    {
+        // §4.5 — integrity findings + the pre-start launch gate.
+        ApplyIntegrityReport(world, _worldIntegrity.Inspect(world.Model));
+
+        // §4.3 — ranked next-step suggestions for the current state.
+        var actions = RecommendedActions.Build(new RecommendedActionInputs
+        {
+            InstallKind = installState.Kind,
+            Health = world.Health,
+            FirewallRulesConfigured = world.FirewallRulesConfigured,
+            HasLanIpv4 = LanIpv4 is { Length: > 0 } ip && ip != "—",
+            IsLanOnly = world.LanOnly,
+            WorldsExist = Worlds.Count > 0,
+            HasBlockerFindings = !world.IsWorldLaunchable,
+        });
+
+        world.RecommendedActions.Clear();
+        foreach (var action in actions)
+        {
+            world.RecommendedActions.Add(action);
+        }
+
+        world.HasRecommendedActions = world.RecommendedActions.Count > 0;
+
+        // §4.2 — surface a guided recovery flow when the world is Blocked.
+        var recoveryTag = world.Health == ServerHealth.Blocked ? world.HealthBlockingTag : null;
+        ApplyRecoveryFlow(world, RecoveryFlows.ForTag(recoveryTag));
+    }
+
+    /// <summary>Refreshes guidance for a world, evaluating its install state first.</summary>
+    private void RefreshGuidance(ServerInstanceViewModel? world)
+    {
+        if (world is not null)
+        {
+            RefreshGuidance(world, _serverInstallState.Evaluate(world.Model));
+        }
+    }
+
+    /// <summary>§4.5: pushes a world-integrity report onto the world view model.</summary>
+    private static void ApplyIntegrityReport(ServerInstanceViewModel world, WorldIntegrityReport report)
+    {
+        world.IntegrityFindings.Clear();
+        foreach (var finding in report.Findings)
+        {
+            world.IntegrityFindings.Add(finding);
+        }
+
+        world.HasIntegrityFindings = world.IntegrityFindings.Count > 0;
+        world.IsWorldLaunchable = report.IsLaunchable;
+
+        var blockers = report.Findings.Count(f => f.Severity == WorldIntegritySeverity.Blocker);
+        var warnings = report.Findings.Count(f => f.Severity == WorldIntegritySeverity.Warning);
+        world.IntegritySummary = !report.IsLaunchable
+            ? $"World cannot start — {blockers} blocker(s) must be fixed."
+            : warnings > 0
+                ? $"World is launchable — {warnings} warning(s) to review."
+                : "World integrity checks passed.";
+    }
+
+    /// <summary>§4.2: pushes the matching guided recovery flow onto the world, or clears it.</summary>
+    private static void ApplyRecoveryFlow(ServerInstanceViewModel world, RecoveryFlow? flow)
+    {
+        world.RecoverySteps.Clear();
+        if (flow is null)
+        {
+            world.HasRecoveryFlow = false;
+            return;
+        }
+
+        world.RecoveryFlowTitle = flow.Title;
+        world.RecoveryFlowSummary = flow.Summary;
+        foreach (var step in flow.Steps)
+        {
+            world.RecoverySteps.Add(step);
+        }
+
+        world.HasRecoveryFlow = true;
+    }
+
+    /// <summary>
+    /// §4.3: runs the App command behind a recommended action. The action
+    /// carries a <c>CommandHint</c> (a command name) so the panel stays
+    /// data-driven — no per-action button wiring in XAML.
+    /// </summary>
+    [RelayCommand]
+    private async Task RunRecommendedAction(RecommendedAction? action)
+    {
+        switch (action?.CommandHint)
+        {
+            case "InstallOrUpdateServerCommand":
+                if (InstallOrUpdateServerCommand.CanExecute(null))
+                {
+                    await InstallOrUpdateServer();
+                }
+
+                break;
+            case "CreateFirewallRulesCommand":
+                if (CreateFirewallRulesCommand.CanExecute(null))
+                {
+                    await CreateFirewallRules();
+                }
+
+                break;
+            case "CreateWorldCommand":
+                await CreateWorld();
+                break;
+            case "RestartServerCommand":
+                if (RestartServerCommand.CanExecute(null))
+                {
+                    await RestartServer();
+                }
+
+                break;
+        }
+    }
+
+    /// <summary>
+    /// §4.2: runs the App command behind a recovery-flow step. The step carries
+    /// an <c>ActionHint</c> command name so the flow stays data-driven.
+    /// </summary>
+    [RelayCommand]
+    private void RunRecoveryStep(RecoveryStep? step)
+    {
+        IRelayCommand? command = step?.ActionHint switch
+        {
+            "StopServerCommand" => StopServerCommand,
+            "RestartServerCommand" => RestartServerCommand,
+            "CreateFreshWorldCommand" => CreateFreshWorldCommand,
+            "OpenWorldFolderCommand" => OpenWorldFolderCommand,
+            "OpenBackupsFolderCommand" => OpenBackupsFolderCommand,
+            "InstallOrUpdateServerCommand" => InstallOrUpdateServerCommand,
+            _ => null,
+        };
+
+        if (command?.CanExecute(null) == true)
+        {
+            command.Execute(null);
+        }
+    }
+
+    /// <summary>§4.9: copies the selected world's lobby code to the clipboard.</summary>
+    [RelayCommand]
+    private void CopyLobbyCode()
+    {
+        var code = SelectedWorld?.LobbyCode;
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return;
+        }
+
+        try
+        {
+            Clipboard.SetText(code);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not copy lobby code to clipboard");
+        }
     }
 
     private void RefreshHeaderInfo(ServerInstallState state)
@@ -1656,6 +2334,25 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (!await PrepareWorldForStartAsync(SelectedWorld))
         {
+            return;
+        }
+
+        // §4.5 — pre-start world-integrity gate: surface blockers up front
+        // instead of letting them fail mid-startup as raw log errors.
+        var integrity = _worldIntegrity.Inspect(SelectedWorld.Model);
+        ApplyIntegrityReport(SelectedWorld, integrity);
+        if (!integrity.IsLaunchable)
+        {
+            SelectedWorld.SelectedVerticalTabIndex = ServerInstanceViewModel.LogsStatusTabIndex;
+            SelectedWorld.LogsSubTabIndex = 0;
+            MessageBox.Show(
+                "This world has integrity problems that must be fixed before it can start:\n\n"
+                + string.Join(
+                    Environment.NewLine,
+                    integrity.Findings
+                        .Where(f => f.Severity == WorldIntegritySeverity.Blocker)
+                        .Select(f => "• " + f.Title)),
+                "Facility Overseer");
             return;
         }
 
@@ -1726,20 +2423,27 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool CanPrepareServer() => SelectedWorld is not null && !IsBusy;
+    // Server preparation installs the shared managed server and is world-
+    // independent, so it does not require a selected world.
+    private bool CanPrepareServer() => !IsBusy;
 
     [RelayCommand(CanExecute = nameof(CanPrepareServer))]
     private async Task InstallOrUpdateServer()
     {
-        if (SelectedWorld is null || IsBusy)
+        if (IsBusy)
         {
             return;
         }
 
         var installPath = _paths.ManagedServerDirectory;
 
-        SelectedWorld.InstallPath = installPath;
-        await SaveAsync();
+        // The server installs to the shared managed directory regardless of any
+        // world. When a world is selected, point it at this install too.
+        if (SelectedWorld is not null)
+        {
+            SelectedWorld.InstallPath = installPath;
+            await SaveAsync();
+        }
 
         IsBusy = true;
         BusyTitle = "Preparing server";
@@ -1808,6 +2512,7 @@ public sealed partial class MainViewModel : ObservableObject
             IsBusy = false;
             ResetBusyProgress();
             RefreshInstallStatus(SelectedWorld);
+            RefreshServerInstallState();
         }
     }
 

@@ -31,6 +31,9 @@ public sealed class WindowsNetworkSetupService : INetworkSetupService
         _logger = logger;
     }
 
+    public Ipv4SelectionResult DetectLanIpv4() =>
+        Ipv4Selection.Select(GatherCandidates());
+
     public async Task<NetworkSetupStatus> InspectAsync(
         ServerInstance instance,
         CancellationToken ct = default)
@@ -74,8 +77,6 @@ public sealed class WindowsNetworkSetupService : INetworkSetupService
             PortValidationMessages = portValidation.Messages,
             Environment = inspection?.Environment,
             PortBindings = inspection?.Ports ?? [],
-            LastRouterChecklistIpv4 = instance.Network.LastRouterChecklistIpv4,
-            LastRouterChecklistCopiedAtUtc = instance.Network.LastRouterChecklistCopiedAtUtc,
             LastFirewallRepairAtUtc = instance.Network.LastFirewallRepairAtUtc,
             MultipleIpWarning = selection.HasAmbiguity ? selection.Warning : null,
         };
@@ -103,18 +104,12 @@ public sealed class WindowsNetworkSetupService : INetworkSetupService
             };
         }
 
+        // The server executable may not exist yet (server not installed). That
+        // must NOT block firewall creation — the two UDP port rules are what
+        // friends actually need, and they do not depend on the executable. Only
+        // the optional program rule needs it, and the script skips that cleanly.
         var executable = _locator.Locate(instance.InstallPath);
-        if (string.IsNullOrWhiteSpace(executable))
-        {
-            return new FirewallSetupResult
-            {
-                Success = false,
-                Message = "Cannot create all firewall rules because the dedicated server " +
-                          "executable was not found. Prepare or update the server first.",
-                Diagnostics = "Server executable path was empty.",
-                LogPath = logPath,
-            };
-        }
+        var hasExecutable = !string.IsNullOrWhiteSpace(executable);
 
         var resultPath = Path.Combine(
             Path.GetTempPath(),
@@ -169,10 +164,10 @@ public sealed class WindowsNetworkSetupService : INetworkSetupService
                 instance,
                 executable,
                 ct).ConfigureAwait(false);
-            var verified = VerifyRequiredRules(inspection);
-            var verificationProblems = VerificationProblems(inspection, inspectionError);
+            var verified = VerifyRequiredRules(inspection, requireProgramRule: hasExecutable);
+            var verificationProblems = VerificationProblems(inspection, inspectionError, hasExecutable);
 
-            return MapOutcome(outcome, verified, verificationProblems, logPath);
+            return MapOutcome(outcome, verified, verificationProblems, logPath, hasExecutable);
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
@@ -258,15 +253,21 @@ public sealed class WindowsNetworkSetupService : INetworkSetupService
         FirewallApplyOutcome outcome,
         bool verified,
         IReadOnlyList<string> verificationProblems,
-        string logPath)
+        string logPath,
+        bool hasExecutable)
     {
         if (outcome.Success && verified)
         {
             return new FirewallSetupResult
             {
                 Success = true,
-                Message = "Windows Firewall rules were repaired and verified: game UDP, " +
-                          "query UDP, and server executable.",
+                Message = hasExecutable
+                    ? "Windows Firewall rules were repaired and verified: game UDP, " +
+                      "query UDP, and server executable."
+                    : "Windows Firewall game and query UDP rules were created and verified. " +
+                      "The optional server-executable rule was skipped because the dedicated " +
+                      "server is not installed yet — run Prepare / Update Server, then " +
+                      "Create / Repair rules again to add it.",
                 Diagnostics = outcome.RawLog,
                 LogPath = logPath,
             };
@@ -294,18 +295,27 @@ public sealed class WindowsNetworkSetupService : INetworkSetupService
         };
     }
 
-    private static bool VerifyRequiredRules(FirewallInspection? inspection) =>
-        inspection is not null &&
-        new[]
+    private static bool VerifyRequiredRules(FirewallInspection? inspection, bool requireProgramRule)
+    {
+        if (inspection is null)
         {
-            FirewallRuleRole.Game,
-            FirewallRuleRole.Query,
-            FirewallRuleRole.Program,
-        }.All(role => inspection.Roles.Any(r => r.Role == role && r.Exists && r.IsCorrect));
+            return false;
+        }
+
+        // The program rule is only a hard requirement when the server executable
+        // exists. Without it, game + query UDP rules are the full required set.
+        var required = requireProgramRule
+            ? new[] { FirewallRuleRole.Game, FirewallRuleRole.Query, FirewallRuleRole.Program }
+            : [FirewallRuleRole.Game, FirewallRuleRole.Query];
+
+        return required.All(role =>
+            inspection.Roles.Any(r => r.Role == role && r.Exists && r.IsCorrect));
+    }
 
     private static IReadOnlyList<string> VerificationProblems(
         FirewallInspection? inspection,
-        string? inspectionError)
+        string? inspectionError,
+        bool requireProgramRule)
     {
         if (inspection is null)
         {
@@ -313,6 +323,9 @@ public sealed class WindowsNetworkSetupService : INetworkSetupService
         }
 
         return [.. inspection.Roles
+            // A missing program rule is expected when the server is not installed —
+            // do not report it as a verification problem.
+            .Where(r => requireProgramRule || r.Role != FirewallRuleRole.Program)
             .Where(r => !r.Exists || !r.IsCorrect)
             .Select(r => $"{r.Role}: {string.Join(" ", r.Problems)}")
             .Where(s => s.Length > 0)];
@@ -329,7 +342,7 @@ public sealed class WindowsNetworkSetupService : INetworkSetupService
         var checks = new List<NetworkCheckResult>();
 
         AddSourceOfTruthChecks(checks, instance, executable, portValidation);
-        AddLanChecks(checks, instance, selection);
+        AddLanChecks(checks, selection);
         AddFirewallChecks(checks, instance, executable, inspection, inspectionError);
         AddEnvironmentChecks(checks, inspection);
         AddExternalReachabilityCheck(checks);
@@ -462,7 +475,6 @@ public sealed class WindowsNetworkSetupService : INetworkSetupService
 
     private static void AddLanChecks(
         List<NetworkCheckResult> checks,
-        ServerInstance instance,
         Ipv4SelectionResult selection)
     {
         checks.Add(new NetworkCheckResult
@@ -497,45 +509,8 @@ public sealed class WindowsNetworkSetupService : INetworkSetupService
             });
         }
 
-        var last = instance.Network.LastRouterChecklistIpv4;
-        var current = selection.Best;
-        var driftStatus = NetworkCheckStatus.Unknown;
-        var summary = "No router checklist target has been copied for this world yet.";
-        var remediation = "Copy the router checklist after Check Setup detects this PC's LAN IPv4.";
-
-        if (last is { Length: > 0 } && current is { Length: > 0 })
-        {
-            if (string.Equals(last, current, StringComparison.Ordinal))
-            {
-                driftStatus = NetworkCheckStatus.Pass;
-                summary = "Router checklist target still matches this PC.";
-                remediation = "";
-            }
-            else
-            {
-                driftStatus = NetworkCheckStatus.Warn;
-                summary = $"Router target may be stale. Your last copied router checklist used {last}, " +
-                          $"but this PC now appears to be {current}. Update the router forwards or " +
-                          "reserve this PC's IP in DHCP.";
-                remediation = "Copy the updated router checklist and update your router's UDP forwards.";
-            }
-        }
-        else if (last is { Length: > 0 })
-        {
-            driftStatus = NetworkCheckStatus.Unknown;
-            summary = $"The last copied router checklist used {last}, but no current LAN IPv4 was detected.";
-        }
-
-        checks.Add(new NetworkCheckResult
-        {
-            Id = "lan.routerTargetDrift",
-            Label = "Router checklist target",
-            Category = "LAN IPv4",
-            Value = last ?? "Not copied yet",
-            Status = driftStatus,
-            Summary = summary,
-            Remediation = remediation,
-        });
+        // Router-target drift is covered by the §3.1a launch banner
+        // (last-seen LAN IPv4 vs current), so it is no longer tracked here.
     }
 
     private static void AddFirewallChecks(

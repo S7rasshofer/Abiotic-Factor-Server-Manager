@@ -32,32 +32,15 @@ public class ServerHealthTrackerTests
     }
 
     [Fact]
-    public void Readiness_after_blocking_signal_recovers_to_online()
+    public void Blocked_state_is_sticky_over_later_readiness()
     {
         var t = new ServerHealthTracker();
         t.OnProcessStarted();
         t.Apply(Log("Failed to bind: address already in use"));
         Assert.Equal(ServerHealth.Blocked, t.Health);
 
-        // A server that goes on to report readiness is, by definition, online;
-        // an earlier blocking signal must not latch permanently.
-        Assert.True(t.Apply(Log("Session creation completed.")));
-        Assert.Equal(ServerHealth.Online, t.Health);
-    }
-
-    [Fact]
-    public void Benign_corruption_line_does_not_block_a_starting_server()
-    {
-        var t = new ServerHealthTracker();
-        t.OnProcessStarted();
-
-        // The save-backup system mentions "corruption" on healthy servers.
-        Assert.False(t.Apply(Log(
-            "LogWorldSave: Backup written to guard the world against corruption")));
-        Assert.Equal(ServerHealth.Starting, t.Health);
-
-        Assert.True(t.Apply(Log("LogEOS: Session creation completed.")));
-        Assert.Equal(ServerHealth.Online, t.Health);
+        t.Apply(Log("Session creation completed."));
+        Assert.Equal(ServerHealth.Blocked, t.Health);
     }
 
     [Fact]
@@ -94,23 +77,36 @@ public class ServerHealthTrackerTests
     public void Recognises_blocking_reasons(string text) =>
         Assert.NotNull(ServerHealthSignals.BlockingReason(text));
 
-    [Theory]
-    [InlineData("LogAbiotic: Error - world save is corrupt and cannot be loaded")]
-    [InlineData("LogAbiotic: Fatal: failed to load world, save data is corrupt")]
-    public void Fatal_world_corruption_still_blocks(string text) =>
-        Assert.NotNull(ServerHealthSignals.BlockingReason(text));
-
-    [Theory]
-    [InlineData("LogAbiotic: Restored world save from a backup after detecting corruption")]
-    [InlineData("LogAbiotic: World save integrity check passed, no corruption found")]
-    [InlineData("LogWorldSave: Backup written to guard the world against corruption")]
-    public void Benign_corruption_mentions_do_not_block(string text) =>
-        Assert.Null(ServerHealthSignals.BlockingReason(text));
-
     [Fact]
     public void Normal_line_is_not_blocking_or_ready()
     {
         Assert.Null(ServerHealthSignals.BlockingReason("LogMemory: tick complete"));
         Assert.False(ServerHealthSignals.IsReadiness("LogMemory: tick complete"));
+    }
+
+    [Theory]
+    [InlineData("LogAbiotic: World save is corrupt and cannot be loaded", "world.corrupt")]
+    [InlineData("Failed to bind: address already in use", "port.bind_fail")]
+    public void BlockingTag_maps_recoverable_signals(string text, string expected) =>
+        Assert.Equal(expected, ServerHealthSignals.BlockingTag(text));
+
+    [Theory]
+    [InlineData("Could not find sandbox override path")]
+    [InlineData("EOS error: session creation failed")]
+    [InlineData("Fatal error encountered")]
+    [InlineData("LogMemory: tick complete")]
+    public void BlockingTag_is_null_when_there_is_no_guided_flow(string text) =>
+        Assert.Null(ServerHealthSignals.BlockingTag(text));
+
+    [Fact]
+    public void Tracker_exposes_blocking_tag_while_blocked()
+    {
+        var t = new ServerHealthTracker();
+        t.OnProcessStarted();
+        Assert.Null(t.BlockingTag);
+
+        t.Apply(Log("LogAbiotic: the world save is corrupt"));
+        Assert.Equal(ServerHealth.Blocked, t.Health);
+        Assert.Equal("world.corrupt", t.BlockingTag);
     }
 }

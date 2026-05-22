@@ -14,6 +14,32 @@ public enum ServerHealth
 }
 
 /// <summary>
+/// Semantic indicator color for a <see cref="ServerHealth"/> value. The actual
+/// pixel color lives in the App layer; this enum keeps the mapping in Core so
+/// it is unit-testable without pulling in WPF.
+/// </summary>
+public enum HealthIndicator
+{
+    Grey,    // Stopped — nothing running
+    Yellow,  // Starting — running, not yet ready
+    Green,   // Online — ready for players
+    Red,     // Blocked / Crashed — running or recently running but unhealthy
+}
+
+public static class HealthIndicators
+{
+    public static HealthIndicator For(ServerHealth health) => health switch
+    {
+        ServerHealth.Stopped => HealthIndicator.Grey,
+        ServerHealth.Starting => HealthIndicator.Yellow,
+        ServerHealth.Online => HealthIndicator.Green,
+        ServerHealth.Blocked => HealthIndicator.Red,
+        ServerHealth.Crashed => HealthIndicator.Red,
+        _ => HealthIndicator.Grey,
+    };
+}
+
+/// <summary>
 /// Pure recognition of readiness / blocking log signals. Best-effort token
 /// matching - unit-tested so behaviour is pinned even though Abiotic Factor's
 /// exact phrasing can shift between builds.
@@ -60,11 +86,7 @@ public static class ServerHealthSignals
 
         bool Has(string a) => text.Contains(a, StringComparison.OrdinalIgnoreCase);
 
-        // A genuine corrupt-save abort is always logged with a failure/fatal
-        // cue. Abiotic Factor's save-backup system also writes the word
-        // "corruption" on healthy servers (integrity checks, backup restores);
-        // those carry no fatal cue and must not block a playable server.
-        if (Has("corrupt") && Has("world") && HasFatalCue(text))
+        if ((Has("corrupt") || Has("corruption")) && Has("world"))
         {
             return "The world save appears to be corrupt.";
         }
@@ -95,28 +117,34 @@ public static class ServerHealthSignals
         return null;
     }
 
-    private static readonly string[] FatalCues =
-    [
-        "error", "fatal", "failed", "failure",
-        "cannot", "could not", "unable", "abort",
-    ];
-
     /// <summary>
-    /// True when a line carries an explicit failure/abort cue. A bare mention
-    /// of a scary topic is not itself fatal - only a line that also says it
-    /// actually failed should be treated as a blocking signal.
+    /// §4.2: a stable recovery-flow trigger tag when the blocking signal has a
+    /// guided recovery flow (see <c>RecoveryFlows</c>), else null. Parallels
+    /// <see cref="BlockingReason"/> — only corruption and port-bind failures
+    /// have a guided flow; other blocking reasons return null.
     /// </summary>
-    private static bool HasFatalCue(string text)
+    public static string? BlockingTag(string? text)
     {
-        foreach (var cue in FatalCues)
+        if (string.IsNullOrWhiteSpace(text))
         {
-            if (text.Contains(cue, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
+            return null;
         }
 
-        return false;
+        bool Has(string a) => text.Contains(a, StringComparison.OrdinalIgnoreCase);
+
+        if ((Has("corrupt") || Has("corruption")) && Has("world"))
+        {
+            return "world.corrupt";
+        }
+
+        if (Has("address already in use") ||
+            Has("failed to bind") || Has("bind failed") ||
+            (Has("port") && Has("in use")))
+        {
+            return "port.bind_fail";
+        }
+
+        return null;
     }
 }
 
@@ -126,10 +154,18 @@ public sealed class ServerHealthTracker
 
     public string Reason { get; private set; } = "Server is stopped.";
 
+    /// <summary>
+    /// §4.2: recovery-flow trigger tag set while <see cref="Health"/> is
+    /// <see cref="ServerHealth.Blocked"/> by a signal that has a guided flow
+    /// (<c>world.corrupt</c> / <c>port.bind_fail</c>), else null.
+    /// </summary>
+    public string? BlockingTag { get; private set; }
+
     public void OnProcessStarted()
     {
         Health = ServerHealth.Starting;
         Reason = "Server process started; waiting for it to become ready.";
+        BlockingTag = null;
     }
 
     public void OnProcessExited(bool unexpected)
@@ -169,13 +205,11 @@ public sealed class ServerHealthTracker
 
             Health = ServerHealth.Blocked;
             Reason = reason;
+            BlockingTag = ServerHealthSignals.BlockingTag(line.Text);
             return true;
         }
 
-        // A readiness signal always wins: if the server is demonstrably up for
-        // play, that beats an earlier blocking signal, which may have been a
-        // transient or misread condition the server recovered from.
-        if (ServerHealthSignals.IsReadiness(line.Text))
+        if (Health != ServerHealth.Blocked && ServerHealthSignals.IsReadiness(line.Text))
         {
             if (Health == ServerHealth.Online)
             {
@@ -184,6 +218,7 @@ public sealed class ServerHealthTracker
 
             Health = ServerHealth.Online;
             Reason = "Server is online and ready for players.";
+            BlockingTag = null;
             return true;
         }
 

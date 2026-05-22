@@ -134,8 +134,6 @@ public sealed record NetworkSetupStatus
     public IReadOnlyList<DiagnosticMessage> PortValidationMessages { get; init; } = [];
     public NetworkEnvironment? Environment { get; init; }
     public IReadOnlyList<PortBindingStatus> PortBindings { get; init; } = [];
-    public string? LastRouterChecklistIpv4 { get; init; }
-    public DateTimeOffset? LastRouterChecklistCopiedAtUtc { get; init; }
     public DateTimeOffset? LastFirewallRepairAtUtc { get; init; }
 
     /// <summary>Set when more than one plausible LAN IPv4 was detected.</summary>
@@ -170,4 +168,11 @@ public interface INetworkSetupService
     Task<FirewallSetupResult> EnsureFirewallRulesAsync(
         ServerInstance instance,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Detects the host's best LAN IPv4 without per-world coupling. Used at
+    /// startup to compare against the persisted snapshot and flag port-forwarding
+    /// concerns when the LAN IP has changed since the last launch.
+    /// </summary>
+    AbioticServerManager.Core.Networking.Ipv4SelectionResult DetectLanIpv4();
 }

@@ -417,10 +417,14 @@ category — they are not hand‑built forms.)
   loses all per‑world tuning and the admin/ban list**. Users reasonably expect
   settings to outlive a server reinstall. High‑priority debt.
 - **No live kick** (file‑ban + restart only) — see §15.
-- `AdminListService` assumes a *flat* SteamID `Admins.ini`, but the real file is
-  *sectioned* `Admin.ini` (`[Moderators]`/`[BannedPlayers]`). `PlayerBanService`/
-  `AdminIniBanEditor` use the correct sectioned format; the **Admin tab’s editor
-  and the ban editor are not yet unified** — a refactor target.
+- ~~`AdminListService` assumes a *flat* SteamID `Admins.ini`, but the real file is
+  *sectioned* `Admin.ini` (`[Moderators]`/`[BannedPlayers]`).~~ **Resolved
+  2026‑05‑20 (§2.2)**: `AdminIniModeratorEditor` (pure Core) was added to
+  mirror `AdminIniBanEditor`, and `AdminListService` now loads/replaces only
+  `[Moderators]` lines via the sectioned editor. Both the Admin tab editor
+  and the Ban/Unban commands target the same sectioned `Admin.ini`,
+  preserving comments, blank lines, and the unrelated section
+  byte‑for‑byte.
 - All dialogs are `MessageBox` — no rich modal/diagnostic panel; failures go to
   logs.
 - Server‑readiness/health signals are heuristic token matches (no confirmed AF

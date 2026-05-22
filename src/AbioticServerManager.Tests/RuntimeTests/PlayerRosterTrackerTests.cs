@@ -243,4 +243,57 @@ public class PlayerRosterTrackerTests
         t.Apply(Log(RealClose, 1)); // hex not associated with anyone
         Assert.True(t.Entries[0].IsOnline);
     }
+
+    // ---- PlayerCount=0 corrective (the "stuck online for an hour" bug) ----
+
+    [Fact]
+    public void Player_count_zero_offlines_everyone_even_without_a_disconnect_line()
+    {
+        // Scenario from the field: a player hopped on briefly, the disconnect
+        // line was never matched, and they showed online until server stop.
+        // The session-browser PlayerCount dropping to 0 must close the session.
+        var t = new PlayerRosterTracker();
+        t.Apply(Log("LogNet: Join succeeded: S7razzy", 0));
+        t.Apply(Log("EOS_SessionModification_AddAttribute() named (PlayerCount) with value (1)", 1));
+        Assert.Equal(1, t.OnlineCount);
+
+        // No UNetConnection::Close line arrives — only the count dropping.
+        t.Apply(Log("EOS_SessionModification_AddAttribute() named (PlayerCount) with value (0)", 30));
+
+        Assert.Equal(0, t.OnlineCount);
+        Assert.False(t.Entries[0].IsOnline);
+        Assert.Null(t.Entries[0].CurrentSessionStartedAt);
+        Assert.Null(t.CountWarning);
+    }
+
+    [Fact]
+    public void Player_count_zero_corrects_a_missed_disconnect_hex_mismatch()
+    {
+        var t = new PlayerRosterTracker();
+        t.Apply(Log(RealAccepted, 0));
+        t.Apply(Log(RealLogin, 1));
+        t.Apply(Log("LogNet: Join succeeded: S7razzy", 2));
+        Assert.True(t.Entries[0].IsOnline);
+
+        // A close line whose hex doesn't match — would leave the player stuck.
+        t.Apply(Log("LogNet: UNetConnection::Close: ... _+_|deadbeefdeadbeef", 10));
+        Assert.True(t.Entries[0].IsOnline); // still stuck at this point
+
+        // The count going to 0 is the authoritative corrective.
+        t.Apply(Log("EOS_SessionModification_AddAttribute() named (PlayerCount) with value (0)", 11));
+        Assert.False(t.Entries[0].IsOnline);
+        Assert.Equal(0, t.OnlineCount);
+    }
+
+    [Fact]
+    public void Player_count_zero_does_not_resurrect_or_duplicate_players()
+    {
+        var t = new PlayerRosterTracker();
+        t.Apply(Log("LogNet: Join succeeded: S7razzy", 0));
+        t.Apply(Log("EOS_SessionModification_AddAttribute() named (PlayerCount) with value (0)", 5));
+
+        Assert.Single(t.Entries);
+        Assert.False(t.Entries[0].IsOnline);
+        Assert.Equal("disconnected", t.Entries[0].LastActivity);
+    }
 }

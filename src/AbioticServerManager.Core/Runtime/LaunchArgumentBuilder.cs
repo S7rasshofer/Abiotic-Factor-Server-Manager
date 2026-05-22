@@ -33,13 +33,13 @@ public sealed class LaunchArgumentBuilder : ILaunchArgumentBuilder
             args.Add(KeyValue("AdminPassword", maskSecrets ? Mask : instance.AdminPassword));
         }
 
-        var sandboxIniPath = ToSavedRelativePath(instance.InstallPath, instance.SandboxIniPath);
+        var sandboxIniPath = ResolveIniArg(instance.InstallPath, instance.SandboxIniPath);
         if (!string.IsNullOrWhiteSpace(sandboxIniPath))
         {
             args.Add(KeyValue("SandboxIniPath", sandboxIniPath));
         }
 
-        var adminIniPath = ToSavedRelativePath(instance.InstallPath, instance.AdminIniPath);
+        var adminIniPath = ResolveIniArg(instance.InstallPath, instance.AdminIniPath);
         if (!string.IsNullOrWhiteSpace(adminIniPath))
         {
             args.Add(KeyValue("AdminIniPath", adminIniPath));
@@ -92,7 +92,13 @@ public sealed class LaunchArgumentBuilder : ILaunchArgumentBuilder
         return needsQuotes ? $"-{key}=\"{safe}\"" : $"-{key}={value}";
     }
 
-    private static string? ToSavedRelativePath(string installPath, string path)
+    /// <summary>
+    /// §2.1: per-world INIs may live under <c>&lt;DataRoot&gt;/worlds/&lt;id&gt;/config/</c>
+    /// (outside the server install). When the path can be expressed as relative to
+    /// <c>&lt;install&gt;/AbioticFactor/Saved/</c> we keep that historical form;
+    /// otherwise we emit the absolute path so an out-of-install config is reachable.
+    /// </summary>
+    private static string? ResolveIniArg(string installPath, string path)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
@@ -104,14 +110,18 @@ public sealed class LaunchArgumentBuilder : ILaunchArgumentBuilder
             return NormalizeSeparators(path);
         }
 
-        if (string.IsNullOrWhiteSpace(installPath))
+        if (!string.IsNullOrWhiteSpace(installPath))
         {
-            return null;
+            var savedRoot = Path.Combine(installPath, "AbioticFactor", "Saved");
+            var relative = Path.GetRelativePath(savedRoot, path);
+            if (IsRelativeSubPath(relative))
+            {
+                return NormalizeSeparators(relative);
+            }
         }
 
-        var savedRoot = Path.Combine(installPath, "AbioticFactor", "Saved");
-        var relative = Path.GetRelativePath(savedRoot, path);
-        return IsRelativeSubPath(relative) ? NormalizeSeparators(relative) : null;
+        // Outside the install: emit the absolute path (Unreal accepts both forms).
+        return path;
     }
 
     private static bool IsRelativeSubPath(string path) =>

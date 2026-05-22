@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using AbioticServerManager.App.ViewModels;
+using AbioticServerManager.App.Views;
 using AbioticServerManager.Core;
 using AbioticServerManager.Core.Services;
 using AbioticServerManager.Infrastructure;
@@ -20,6 +21,28 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // The data-root picker is shown and closed before MainWindow exists. Under
+        // the default OnLastWindowClose shutdown mode, closing the picker would quit
+        // the app before the main window opens — so hold shutdown explicitly until
+        // MainWindow is up (restored to OnMainWindowClose below).
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+        // First-launch only: offer the data-folder choice. Subsequent launches read
+        // the saved choice and skip the dialog. Cancelling the dialog quits the app
+        // rather than silently auto-detecting (otherwise the user would never get
+        // the dialog again and the "saved choice" model would be a lie).
+        if (DataRootChoiceFile.TryLoad() is null)
+        {
+            var picker = new DataRootPickerWindow();
+            if (picker.ShowDialog() != true || string.IsNullOrEmpty(picker.ChosenPath))
+            {
+                Shutdown(0);
+                return;
+            }
+
+            DataRootChoiceFile.TrySave(picker.ChosenPath);
+        }
 
         // AppPaths is deterministic, so build it before the host to know where logs go.
         var paths = new AppPaths();
@@ -55,6 +78,9 @@ public partial class App : Application
         window.DataContext = _host.Services.GetRequiredService<MainViewModel>();
         MainWindow = window;
         window.Show();
+
+        // MainWindow is up — closing it now exits the app normally.
+        ShutdownMode = ShutdownMode.OnMainWindowClose;
 
         await _host.Services.GetRequiredService<MainViewModel>().InitializeAsync();
     }

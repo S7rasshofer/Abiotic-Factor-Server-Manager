@@ -506,9 +506,19 @@ public static class FirewallScriptBuilder
             }
 
             try {
+                # The two UDP port rules never depend on the server executable, so
+                # they are always created. The program rule is only attempted when
+                # the executable path is known — a missing server install must NOT
+                # block the port rules (that was the "no firewall rules appear" bug).
                 Repair-PortRule {{gamePurpose}} {{gameLegacy}} {{gameName}} {{gameDesc}} {{gamePort}}
                 Repair-PortRule {{queryPurpose}} {{queryLegacy}} {{queryName}} {{queryDesc}} {{queryPort}}
-                Repair-ProgramRule {{programPurpose}} {{programLegacy}} {{programName}} {{programDesc}} {{program}}
+
+                $programPath = {{program}}
+                if ($programPath -and -not [string]::IsNullOrWhiteSpace([string]$programPath)) {
+                    Repair-ProgramRule {{programPurpose}} {{programLegacy}} {{programName}} {{programDesc}} $programPath
+                } else {
+                    Add-Operation {{programPurpose}} {{programName}} ([ordered]@{ Skipped = $true }) 0 'Server executable not installed yet; program rule skipped.' $false
+                }
 
                 $ok = ($errors.Count -eq 0)
                 Write-Result $ok

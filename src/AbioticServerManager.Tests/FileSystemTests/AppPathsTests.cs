@@ -5,7 +5,7 @@ namespace AbioticServerManager.Tests.FileSystemTests;
 public class AppPathsTests
 {
     [Fact]
-    public void Single_root_layout_keeps_every_managed_file_under_the_data_root()
+    public void Single_root_layout_keeps_mutable_files_under_data_root()
     {
         var root = Path.Combine(Path.GetTempPath(), "fo-paths-" + Guid.NewGuid().ToString("N"));
         var paths = new AppPaths(root);
@@ -19,32 +19,97 @@ public class AppPathsTests
             paths.DefaultServerInstallDirectory);
         Assert.Equal(Path.Combine(root, "backups"), paths.BackupsRoot);
         Assert.Equal(Path.Combine(root, "logs"), paths.LogsDirectory);
-        Assert.Equal(Path.Combine(root, "players"), paths.PlayersDirectory);
     }
 
     [Theory]
-    // Writable and not cloud-synced -> portable folder beside the exe.
-    [InlineData(true, false, true)]
-    // Not writable (e.g. Program Files) -> safe local app data folder.
-    [InlineData(false, false, false)]
-    // Writable but cloud-synced (OneDrive et al.) -> still falls back to local
-    // app data, so SteamCMD's steam.dll never lives on a synced volume.
-    [InlineData(true, true, false)]
-    public void Data_root_resolver_uses_the_portable_folder_only_when_safe(
+    [InlineData(true, "FacilityOverseerData")]
+    [InlineData(false, "FacilityOverseer")]
+    public void Data_root_resolver_prefers_portable_folder_when_app_directory_is_writable(
         bool appDirectoryWritable,
-        bool appDirectorySynced,
-        bool expectsPortableFolder)
+        string expectedLeaf)
     {
         var appBase = Path.Combine(Path.GetTempPath(), "fo-app");
         var local = Path.Combine(Path.GetTempPath(), "fo-local");
 
-        var resolved = AppPaths.ResolveDataRoot(
-            appBase, local, appDirectoryWritable, appDirectorySynced);
+        var resolved = AppPaths.ResolveDataRoot(appBase, local, appDirectoryWritable);
 
-        var expected = expectsPortableFolder
-            ? Path.Combine(appBase, "FacilityOverseerData")
-            : Path.Combine(local, "FacilityOverseer");
-        Assert.Equal(expected, resolved);
+        Assert.Equal(Path.Combine(appDirectoryWritable ? appBase : local, expectedLeaf), resolved);
+    }
+
+    [Theory]
+    [InlineData(true)]   // exe folder is writable; saved choice still wins
+    [InlineData(false)]
+    public void Saved_choice_wins_over_auto_detect(bool appDirectoryWritable)
+    {
+        var savedChoice = Path.Combine(Path.GetTempPath(), "fo-user-picked-this");
+        var appBase = Path.Combine(Path.GetTempPath(), "fo-app");
+        var local = Path.Combine(Path.GetTempPath(), "fo-local");
+
+        var resolved = AppPaths.ResolveDataRoot(savedChoice, appBase, local, appDirectoryWritable);
+
+        Assert.Equal(Path.GetFullPath(savedChoice), resolved);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Missing_or_blank_saved_choice_falls_back_to_auto_detect(string? savedChoice)
+    {
+        var appBase = Path.Combine(Path.GetTempPath(), "fo-app");
+        var local = Path.Combine(Path.GetTempPath(), "fo-local");
+
+        var resolved = AppPaths.ResolveDataRoot(savedChoice, appBase, local, appDirectoryWritable: true);
+
+        Assert.Equal(Path.Combine(appBase, "FacilityOverseerData"), resolved);
+    }
+
+    [Fact]
+    public void Data_root_choice_file_round_trips()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "fo-choice-" + Guid.NewGuid().ToString("N"));
+        var file = Path.Combine(dir, "data-root.txt");
+        var chosen = Path.Combine(Path.GetTempPath(), "fo-user-picked");
+        try
+        {
+            Assert.Null(DataRootChoiceFile.TryLoad(file));
+
+            Assert.True(DataRootChoiceFile.TrySave(chosen, file));
+            Assert.Equal(chosen, DataRootChoiceFile.TryLoad(file));
+
+            // Re-saving overwrites cleanly (no append).
+            var second = Path.Combine(Path.GetTempPath(), "fo-user-changed-their-mind");
+            Assert.True(DataRootChoiceFile.TrySave(second, file));
+            Assert.Equal(second, DataRootChoiceFile.TryLoad(file));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Data_root_choice_file_treats_blank_content_as_no_choice()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "fo-choice-" + Guid.NewGuid().ToString("N"));
+        var file = Path.Combine(dir, "data-root.txt");
+        try
+        {
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(file, "   \r\n  ");
+
+            Assert.Null(DataRootChoiceFile.TryLoad(file));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+        }
     }
 
     [Theory]
@@ -57,6 +122,35 @@ public class AppPathsTests
     [InlineData("", false)]
     public void Detects_synced_locations(string path, bool expected) =>
         Assert.Equal(expected, AppPaths.IsSyncedLocation(path));
+
+    [Fact]
+    public void Synced_root_redirects_tools_and_servers_but_keeps_config()
+    {
+        var oneDriveRoot = Path.Combine(
+            @"C:\Users\bob\OneDrive\Documents", "FacilityOverseerData");
+
+        var paths = new AppPaths(oneDriveRoot);
+
+        // Config stays put (small, sync-safe, avoids losing the user's worlds)...
+        Assert.Equal(oneDriveRoot, paths.DataRoot);
+        Assert.StartsWith(oneDriveRoot, paths.ConfigDirectory);
+        // ...but rewrite-heavy SteamCMD/servers move off the synced volume.
+        Assert.NotEqual(oneDriveRoot, paths.VolatileRoot);
+        Assert.False(AppPaths.IsSyncedLocation(paths.SteamCmdDirectory));
+        Assert.DoesNotContain("OneDrive", paths.SteamCmdDirectory);
+        Assert.DoesNotContain("OneDrive", paths.ServersDirectory);
+    }
+
+    [Fact]
+    public void Non_synced_root_keeps_everything_together()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "fo-paths-" + Guid.NewGuid().ToString("N"));
+
+        var paths = new AppPaths(root);
+
+        Assert.Equal(root, paths.VolatileRoot);
+        Assert.Equal(Path.Combine(root, "tools", "steamcmd"), paths.SteamCmdDirectory);
+    }
 
     [Fact]
     public void Ensure_created_does_not_create_managed_server_payload_folder()

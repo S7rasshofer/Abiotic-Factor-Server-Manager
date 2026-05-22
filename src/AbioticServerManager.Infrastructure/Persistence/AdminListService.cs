@@ -4,14 +4,27 @@ using AbioticServerManager.Core.Models;
 namespace AbioticServerManager.Infrastructure.Persistence;
 
 /// <summary>
-/// Flat-file <c>Admins.ini</c> store. Admin entries are SteamID64 lines; every other
-/// line (comments, blanks) is kept verbatim and re-emitted before the managed ID list
-/// so user notes survive an edit. "Discover it, do not hardcode it."
+/// Sectioned <c>Admin.ini</c> store. §2.2 unifier — both the Admin tab editor and the
+/// Ban/Unban commands target this single file. Moderator changes are routed through
+/// <see cref="AdminIniModeratorEditor"/>; the <c>[BannedPlayers]</c> section is left
+/// byte-identical, as are comments / blank lines / example placeholders.
 /// </summary>
 public sealed class AdminListService : IAdminListService
 {
     public string ResolveAdminIniPath(ServerInstance instance)
     {
+        // §2.1: after the world-identity migration, instance.AdminIniPath points
+        // at <DataRoot>/worlds/<id>/config/Admin.ini. Honor it FIRST so a
+        // SteamCMD validate or a server reinstall cannot route us back to a
+        // freshly-wiped in-install path.
+        if (!string.IsNullOrWhiteSpace(instance.AdminIniPath))
+        {
+            return instance.AdminIniPath;
+        }
+
+        // Legacy fallback: a real dedicated-server install keeps Admin.ini under
+        // Saved/SaveGames/Server/. This path only runs when the migration has not
+        // yet been applied for this instance.
         if (HasInstalledServerLayout(instance))
         {
             return Path.Combine(
@@ -23,17 +36,12 @@ public sealed class AdminListService : IAdminListService
                 "Admin.ini");
         }
 
-        if (!string.IsNullOrWhiteSpace(instance.AdminIniPath))
-        {
-            return instance.AdminIniPath;
-        }
-
         if (!string.IsNullOrWhiteSpace(instance.SandboxIniPath))
         {
             var dir = Path.GetDirectoryName(instance.SandboxIniPath);
             if (!string.IsNullOrEmpty(dir))
             {
-                return Path.Combine(dir, "Admins.ini");
+                return Path.Combine(dir, "Admin.ini");
             }
         }
 
@@ -53,10 +61,7 @@ public sealed class AdminListService : IAdminListService
             return [];
         }
 
-        return [.. File.ReadAllLines(path)
-            .Select(l => l.Trim())
-            .Where(IAdminListService.IsValidSteamId)
-            .Distinct(StringComparer.Ordinal)];
+        return AdminIniModeratorEditor.ListModerators(File.ReadAllText(path));
     }
 
     public void Save(string path, IReadOnlyList<string> adminIds)
@@ -66,23 +71,30 @@ public sealed class AdminListService : IAdminListService
             return;
         }
 
-        var preserved = File.Exists(path)
-            ? File.ReadAllLines(path)
-                .Where(l => !IAdminListService.IsValidSteamId(l.Trim()))
-                .ToList()
-            : [];
-
-        var ids = adminIds
-            .Select(a => a.Trim())
-            .Where(IAdminListService.IsValidSteamId)
-            .Distinct(StringComparer.Ordinal);
-
         var dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir))
         {
             Directory.CreateDirectory(dir);
         }
 
-        File.WriteAllLines(path, [.. preserved, .. ids]);
+        var ids = adminIds
+            .Select(a => a.Trim())
+            .Where(IAdminListService.IsValidSteamId)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        var original = File.Exists(path) ? File.ReadAllText(path) : "";
+        var updated = AdminIniModeratorEditor.ReplaceModerators(original, ids);
+
+        var temp = path + ".tmp";
+        File.WriteAllText(temp, updated);
+        if (File.Exists(path))
+        {
+            File.Replace(temp, path, null);
+        }
+        else
+        {
+            File.Move(temp, path);
+        }
     }
 }

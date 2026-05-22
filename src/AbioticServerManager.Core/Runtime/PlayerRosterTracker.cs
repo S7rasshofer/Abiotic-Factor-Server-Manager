@@ -10,6 +10,7 @@ public sealed class PlayerRosterTracker
 {
     private readonly Dictionary<string, PlayerRosterEntry> _byKey = new(StringComparer.Ordinal);
     private readonly List<PlayerRosterEvent> _history = [];
+    private readonly List<PlayerRosterEvent> _chat = [];
     private readonly int _historyLimit;
     private string? _pendingRemoteAddress;
 
@@ -24,6 +25,10 @@ public sealed class PlayerRosterTracker
     public bool HasSeenActivity => _history.Count > 0 || _byKey.Count > 0;
 
     public IReadOnlyList<PlayerRosterEvent> History => _history;
+
+    /// <summary>In-game chat messages, newest first. Kept separate from
+    /// <see cref="History"/> so chat volume never evicts roster lifecycle events.</summary>
+    public IReadOnlyList<PlayerRosterEvent> Chat => _chat;
 
     public int OnlineCount => _byKey.Values.Count(e => e.IsOnline);
 
@@ -90,6 +95,21 @@ public sealed class PlayerRosterTracker
 
             case PlayerRosterEventKind.PlayerCountChanged:
                 ServerPlayerCount = evt.PlayerCount;
+                // Authoritative corrective: the server reporting zero players
+                // means nobody is online, full stop. This closes any session
+                // whose disconnect line we failed to match — the "stuck online
+                // for an hour" bug — without waiting for server shutdown.
+                if (evt.PlayerCount == 0)
+                {
+                    foreach (var e in _byKey.Values.Where(e => e.IsOnline))
+                    {
+                        e.IsOnline = false;
+                        e.CurrentSessionStartedAt = null;
+                        e.LastSeenAt = evt.Timestamp;
+                        e.LastActivity = "disconnected";
+                    }
+                }
+
                 RecomputeCountWarning();
                 break;
 
@@ -109,6 +129,10 @@ public sealed class PlayerRosterTracker
                 ServerPlayerCount = 0;
                 CountWarning = null;
                 break;
+
+            case PlayerRosterEventKind.Chat:
+                ApplyChat(evt);
+                return evt; // chat lives in its own list, not roster History
         }
 
         _history.Insert(0, evt);
@@ -118,6 +142,23 @@ public sealed class PlayerRosterTracker
         }
 
         return evt;
+    }
+
+    private void ApplyChat(PlayerRosterEvent evt)
+    {
+        _chat.Insert(0, evt);
+        if (_chat.Count > _historyLimit)
+        {
+            _chat.RemoveRange(_historyLimit, _chat.Count - _historyLimit);
+        }
+
+        // A chat message proves the player is still around — refresh last-seen.
+        if (!string.IsNullOrWhiteSpace(evt.DisplayName) &&
+            Resolve(null, null, evt.DisplayName, create: false) is { } entry)
+        {
+            entry.LastSeenAt = evt.Timestamp;
+            entry.LastActivity = "chatted";
+        }
     }
 
     private void ApplyLogin(PlayerRosterEvent evt)
