@@ -5,6 +5,10 @@
 > [`CURRENT_BUILD.md`](CURRENT_BUILD.md). Snapshot: 2026‑05‑19. Baseline: 252
 > tests passing, 0 warnings, `TreatWarningsAsErrors=true`.
 >
+> **Active near-term priority:** [`UI_TWEAKS_PLAN.md`](UI_TWEAKS_PLAN.md) — a
+> focused UI tweaks & cleanup pass (review 2026-05-21) that runs **ahead of
+> Phase 3**.
+>
 > Update protocol: when a task finishes, flip `[ ]` to `[x]` in both the
 > overview table **and** its section. Add new tasks at the bottom of the
 > relevant phase, never reorder finished items.
@@ -36,18 +40,18 @@
 | 2.6 | **Health‑driven status dots** | 1 — Stability | [x] | De‑duplicate three running dots → keep one; add `ServerHealth → Brush` converter. |
 | 3.1 | Internal / External IP display | 1 — Stability | [x] | LAN + Public IP strip in top bar; `IPublicIpProbe` (`HttpPublicIpProbe`) probes on launch and on demand. |
 | 3.1a | Internal‑IP change detection | 1 — Stability | [x] | Core `InternalIpChangeTracker` + `JsonInternalIpSnapshotStore`; launch‑time banner above world tabs when the LAN IP changed. |
-| 3.1b | "Lock this internal IP" guidance | 1 — Stability | [~] | Core `LanIpLockGuidance` text builder landed (5 tests); UI surface for the guidance card still pending. |
+| 3.1b | "Lock this internal IP" guidance | 1 — Stability | [x] | Core `LanIpLockGuidance` + a lock-IP button beside the LAN IP → clipboard-copied DHCP-reservation dialog. |
 | 3.2 | Banished‑players page (split out) | 1 — Stability | [x] | Move banned list off Players/Status to its own page; status screen shows active roster only. |
 | 3.3 | Admin thematic marker on roster | 1 — Stability | [x] | Admins rendered in thematic color + small superscript privilege glyph (exponent‑style). |
-| 4.1 | Actionable diagnostic cards | 2 — Intelligence | [ ] | Compact accordion cards; click to expand suggested fix; center on tab. |
-| 4.2 | Guided recovery flows | 2 — Intelligence | [ ] | Wizard‑style flows for corrupt world, port conflict, missing exe, broken SteamCMD. |
-| 4.3 | Recommended actions panel | 2 — Intelligence | [ ] | Surface top 1–3 next‑step suggestions based on state (e.g., "Open firewall — required to host"). |
-| 4.4 | Backup confidence indicators | 2 — Intelligence | [ ] | Per‑backup integrity, age, contents (world+sandbox+admin) badge. |
-| 4.5 | "World integrity" validation | 2 — Intelligence | [ ] | Pre‑start check that staged sandbox/admin paths resolve and parse; surface blockers before launch. |
-| 4.6 | Startup sequence summary | 2 — Intelligence | [ ] | Timeline of readiness phases after Start: process → net driver → world → session → online. |
-| 4.7 | Network confidence scoring | 2 — Intelligence | [ ] | 0–100 score combining firewall, A2S local, public reachability, CGNAT signal. |
-| 4.8 | Color‑coded vertical tabs | 2 — Intelligence | [ ] | Per‑tab accents in `Themes/Overseer.xaml`; config vs ops groups distinct. |
-| 4.9 | Room/join code research + display | 2 — Intelligence | [ ] | Confirm if AF exposes a session/lobby short code; parse `LogOnlineSession` lines; show on Server/Network. |
+| 4.1 | Actionable diagnostic cards | 2 — Intelligence | [x] | Expander-based accordion (click to expand); severity dot + title visible; centered + MaxWidth 720. |
+| 4.2 | Guided recovery flows | 2 — Intelligence | [x] | Contextual recovery panel (ordered steps + action buttons) surfaced when a world is Blocked; `ServerHealthSignals.BlockingTag` picks the flow. |
+| 4.3 | Recommended actions panel | 2 — Intelligence | [x] | `RecommendedActions.Build(...)` ranked panel on the Log tab; each row's button runs the matching command via `CommandHint`. |
+| 4.4 | Backup confidence indicators | 2 — Intelligence | [x] | Per-backup color-coded confidence badge (Full / Partial / Limited + age + stale) on the Backups tab. |
+| 4.5 | "World integrity" validation | 2 — Intelligence | [x] | `IWorldIntegrityInspector` gathers disk facts → `WorldIntegrityValidator`; findings panel + pre-Start blocker gate. |
+| 4.6 | Startup sequence summary | 2 — Intelligence | [x] | `StartupSequenceTracker` 7-phase dot strip on Logs & Status, fed by process + per-line log events. |
+| 4.7 | Network confidence scoring | 2 — Intelligence | [x] | `NetworkConfidenceScoring` 0–100 score + band + strengths + "to improve" lifts panel on the Network tab. |
+| 4.8 | Color‑coded vertical tabs | 2 — Intelligence | [x] | `ConfigTabAccentBrush` (seafoam) + `OpsTabAccentBrush` (slate-blue) applied per TabItem. |
+| 4.9 | Room/join code research + display | 2 — Intelligence | [x] | Confirmed: server logs the lobby code as the EOS `ShortCode` attribute. `LobbyCodeParser` extracts it; copyable LOBBY CODE panel on the Network tab. |
 | 5.1 | RCON abstraction seam | 3 — Remote Admin | [ ] | `IRemoteConsoleClient` interface (Core pure command builders + parsers; Infra does IO). |
 | 5.2 | Verified command catalog | 3 — Remote Admin | [ ] | Data‑driven list of known‑safe AF commands; one‑click buttons; raw box for the rest. |
 | 5.3 | Live player actions | 3 — Remote Admin | [ ] | Real Kick (no restart) + Ban‑live (ban + disconnect) from roster row. |
@@ -225,11 +229,12 @@ wipe, a reinstall, and a reset. Status indicators must not lie.
       `MainViewModel.DetectInternalIpChangeAsync` runs on launch;
       `InternalIpChangeBannerText` + dismissable banner above the world
       tabs. 9 tests in `InternalIpChangeTrackerTests`.*
-- [~] **3.1b** "Lock this internal IP" guidance. *Core landed 2026‑05‑20:
+- [x] **3.1b** "Lock this internal IP" guidance. *Completed 2026‑05‑21:
       `LanIpLockGuidance.Compose(LanIpLockContext)` produces
       router‑agnostic copy‑paste text (UniFi/ASUS/Netgear/TP‑Link hints, no
-      network call), 5 tests. UI card to display the guidance is the
-      remaining sub‑task.*
+      network call), 5 tests. A lock-IP button beside the LAN IP on the top
+      bar composes the guidance, copies it to the clipboard, and shows it
+      in a dialog (`ShowLanIpLockGuidanceCommand`).*
 - [x] **3.2** Banished‑players page split out. *Implemented 2026‑05‑20:
       `RosterPresentation.FilterActive(...)` excludes banned SteamID64s from
       the live roster VM; `BuildBannedRows(...)` produces the new
@@ -263,25 +268,70 @@ Goal: make the app *feel smart*. The user gets prompted toward the right
 action instead of having to read logs. Confidence is quantified, not
 implied.
 
-- [ ] **4.1** Actionable diagnostic cards (compact accordion; click‑to‑expand;
-      one‑open‑at‑a‑time; centered on the Log tab)
-- [ ] **4.2** Guided recovery flows (corrupt world, port conflict, missing
-      exe, broken SteamCMD — wizard with explicit actions, copy‑not‑delete
-      safety)
-- [ ] **4.3** Recommended actions panel (top 1–3 next‑step suggestions
-      based on `ServerInstallState` + `ServerHealth` + network state)
-- [ ] **4.4** Backup confidence indicators (per‑backup integrity, contents
-      badge: world + sandbox + admin)
-- [ ] **4.5** World integrity validation (pre‑start, surface blockers
-      before launch — invalid sandbox path, missing world folder, etc.)
-- [ ] **4.6** Startup sequence summary (timeline: process → net driver →
-      world → session → online; failures highlighted)
-- [ ] **4.7** Network confidence scoring (0–100; firewall + A2S local +
-      public reachability + CGNAT signal)
-- [ ] **4.8** Color‑coded vertical tabs (config vs ops groups; styling in
-      `Themes/Overseer.xaml`; no logic change)
-- [ ] **4.9** Room/join code research + display (confirm AF exposes a
-      session id; parse `LogOnlineSession` lines; copyable on Server/Network)
+- [x] **4.1** Actionable diagnostic cards. *Implemented 2026‑05‑20:
+      Expander accordion replaces the always-expanded card; centered
+      `MaxWidth=720` on the Log tab.*
+- [x] **4.2** Guided recovery flows. *Completed 2026‑05‑21:
+      `RecoveryFlows` catalog (CORRUPT_WORLD / PORT_CONFLICT /
+      MISSING_EXECUTABLE / BROKEN_STEAMCMD; 13 tests). New
+      `ServerHealthSignals.BlockingTag` + `ServerHealthTracker.BlockingTag`
+      (7 tests) expose the trigger tag; `RefreshGuidance` surfaces the
+      matching flow as a contextual panel on the Log tab when a world is
+      Blocked (corrupt world / port conflict), each step's button running
+      its `ActionHint` via `RunRecoveryStepCommand`. Implemented as an
+      inline panel, not a separate modal window — consistent with the
+      §4.1 / §4.3 / §4.5 guidance surfaces and avoids introducing the
+      app's first secondary window.*
+- [x] **4.3** Recommended actions panel. *Completed 2026‑05‑21:
+      `RecommendedActions.Build(...)` (10 tests) is rebuilt by
+      `MainViewModel.RefreshGuidance` on install / health / network /
+      selection changes and rendered as a ranked panel on the
+      Logs & Status → Log tab. Each row's "Do this" button runs the
+      matching command via `RunRecommendedActionCommand`, dispatching on
+      the action's `CommandHint` (install / firewall / create-world /
+      restart) — data-driven, no per-action XAML.*
+- [x] **4.4** Backup confidence indicators. *Completed 2026‑05‑21:
+      `BackupConfidenceCalculator.Evaluate(...)` → Full / Partial / Limited
+      + age + IsStale flag with configurable threshold; 9 tests. Each
+      backup row on the Backups tab now shows a color-coded confidence
+      badge + age (+ a stale marker), evaluated at bind time by
+      `BackupEntryToConfidenceConverter`, with a tooltip explaining gaps.*
+- [x] **4.5** World integrity validation. *Completed 2026‑05‑21:
+      `WorldIntegrityValidator.Validate(...)` (8 tests) is fed by the new
+      `IWorldIntegrityInspector` / `WorldIntegrityInspector` (Infrastructure
+      gathers disk facts into pure inputs; 4 tests). `StartServer` runs it
+      after world prep and aborts on any Blocker with a message; the
+      findings render as an expander panel on the Log tab.
+      `MainViewModel.RefreshGuidance` keeps it live on selection / install /
+      network changes.*
+- [x] **4.6** Startup sequence summary. *Completed 2026‑05‑21:
+      `StartupSequenceTracker` drives a 7-phase timeline (ProcessStarted
+      → NetDriverListening → WorldLoading → WorldLoaded →
+      SessionCreating → SessionCreated → PlayersCanJoin) from log
+      signals; failed phases carry the reason; 9 tests. `ServerInstanceViewModel`
+      feeds it from process start/stop and the per-line log batch; the
+      timeline renders as a colour-coded phase-dot strip on the Logs &
+      Status tab, shown while starting/running or after a failed startup.*
+- [x] **4.7** Network confidence scoring. *Completed 2026‑05‑21:
+      `NetworkConfidenceScoring.Score(...)` → 0–100, band (None / Low /
+      OK / Good / Great), strengths + lifts; CGNAT caps at Low band;
+      LAN-only mode skips public factors; 6 tests. `ApplyNetworkSetupStatus`
+      builds the inputs from the network inspection (firewall rules, port
+      bindings, LAN + public IP via `IpAddressClassifier`) and renders the
+      score, strengths, and "to improve" lifts as a panel on the Network tab.*
+- [x] **4.8** Color‑coded vertical tabs. *Implemented 2026‑05‑20:
+      `ConfigTabAccentBrush` (#8CD9D2 seafoam) on Server / World / Player
+      / Enemy / Admin / Advanced; `OpsTabAccentBrush` (#B6A8E0 slate-blue)
+      on Network / Backups / Logs & Status.*
+- [x] **4.9** Room/join code research + display. *Completed 2026‑05‑21:
+      confirmed from a real Facility Overseer dedicated-server log — the
+      server publishes the in-game "lobby code" as the EOS session
+      attribute `ShortCode`, e.g.
+      `LogOnlineSession: EOS: EOS_SessionModification_AddAttribute() named (ShortCode) with value (O8TXQ)`.
+      Pure `LobbyCodeParser.TryParse` (8 tests, verified against the real
+      line) extracts it; `ServerInstanceViewModel.ApplyHealth` captures it
+      from the log tail and clears it on start/stop; a copyable LOBBY CODE
+      panel shows on the Network tab while the server is running.*
 
 **Definition of done for Phase 2:** a new user can open the app, hit a
 problem, and be guided to the fix without reading the docs. Confidence

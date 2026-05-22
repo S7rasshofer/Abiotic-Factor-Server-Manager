@@ -6,6 +6,7 @@ using AbioticServerManager.Core.Networking;
 using AbioticServerManager.Core.Runtime;
 using AbioticServerManager.Core.Schema;
 using AbioticServerManager.Core.Services;
+using AbioticServerManager.Core.Worlds;
 using AbioticServerManager.Infrastructure.FileSystem;
 using AbioticServerManager.Infrastructure.Install;
 using AbioticServerManager.Infrastructure.Migration;
@@ -35,6 +36,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPlayerBanService, PlayerBanService>();
         services.AddSingleton<ISteamCmdService, SteamCmdService>();
         services.AddSingleton<IServerInstallStateService, ServerInstallStateService>();
+        services.AddSingleton<IWorldIntegrityInspector, WorldIntegrityInspector>();
         services.AddSingleton<IServerProcessService, ServerProcessService>();
         services.AddSingleton<A2SQueryClient>();
         services.AddSingleton<IDiagnosticsService, DiagnosticsService>();

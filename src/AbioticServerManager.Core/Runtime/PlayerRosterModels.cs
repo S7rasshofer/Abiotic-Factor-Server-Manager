@@ -9,6 +9,9 @@ public enum PlayerRosterEventKind
     PlayerCountChanged,
     Disconnected,
     ServerStopped,
+
+    /// <summary>An in-game chat message (carries <see cref="PlayerRosterEvent.Message"/>).</summary>
+    Chat,
 }
 
 /// <summary>
@@ -27,6 +30,9 @@ public sealed record PlayerRosterEvent(
     int? PlayerCount,
     string RawLine)
 {
+    /// <summary>Chat message body — populated only for <see cref="PlayerRosterEventKind.Chat"/>.</summary>
+    public string? Message { get; init; }
+
     public string KindText => Kind switch
     {
         PlayerRosterEventKind.ConnectionAccepted => "connection accepted",
@@ -36,6 +42,7 @@ public sealed record PlayerRosterEvent(
         PlayerRosterEventKind.PlayerCountChanged => "player count changed",
         PlayerRosterEventKind.Disconnected => "disconnected",
         PlayerRosterEventKind.ServerStopped => "server stopped",
+        PlayerRosterEventKind.Chat => "chat",
         _ => Kind.ToString(),
     };
 }

@@ -122,4 +122,97 @@ public class SettingMetadataCatalogTests
             File.Delete(overridePath);
         }
     }
+
+    /// <summary>Every slider-backed (number) setting in the built-in catalog.</summary>
+    private static readonly string[] NumberSettingKeys =
+    [
+        "DayNightCycleSpeedMultiplier", "SinkRefillRate", "FoodSpoilSpeedMultiplier",
+        "RefrigerationEffectivenessMultiplier", "StructuralSupportLimit", "EnemySpawnRate",
+        "EnemyHealthMultiplier", "EnemyPlayerDamageMultiplier", "EnemyDeployableDamageMultiplier",
+        "DetectionSpeedMultiplier", "DamageToAlliesMultiplier", "HungerSpeedMultiplier",
+        "ThirstSpeedMultiplier", "FatigueSpeedMultiplier", "ContinenceSpeedMultiplier",
+        "BonusPerkPoints", "PlayerXPGainMultiplier", "ItemStackSizeMultiplier",
+        "ItemWeightMultiplier", "ItemDurabilityMultiplier", "DurabilityLossOnDeathMultiplier",
+        "BaseInventorySize",
+    ];
+
+    [Fact]
+    public void Every_number_setting_declares_min_max_and_step()
+    {
+        // A missing max is the bug that made one slider runaway-sensitive: with
+        // no metadata max the UI infers one from the value itself, so the track
+        // grows every time the value is pushed up.
+        var catalog = new SettingMetadataCatalog();
+
+        foreach (var key in NumberSettingKeys)
+        {
+            var m = catalog.Find("SandboxSettings", key);
+            Assert.NotNull(m);
+            Assert.Equal(SettingValueType.Number, m!.Type);
+            Assert.True(m.Min is not null, $"{key} is missing a min.");
+            Assert.True(m.Max is not null, $"{key} is missing a max.");
+            Assert.True(m.Step is not null, $"{key} is missing a step.");
+            Assert.True(m.Step > 0, $"{key} has a non-positive step.");
+            Assert.True(m.Min < m.Max, $"{key} has min >= max.");
+        }
+    }
+
+    [Theory]
+    [InlineData("DayNightCycleSpeedMultiplier")]
+    [InlineData("StructuralSupportLimit")]
+    [InlineData("EnemyHealthMultiplier")]
+    [InlineData("EnemyPlayerDamageMultiplier")]
+    [InlineData("BonusPerkPoints")]
+    [InlineData("BaseInventorySize")]
+    [InlineData("DamageToAlliesMultiplier")]
+    [InlineData("DurabilityLossOnDeathMultiplier")]
+    public void Number_setting_default_sits_on_the_snap_grid(string key)
+    {
+        // With slider tick-snapping enabled, both the default and the max must
+        // be an exact number of steps from the min — otherwise the user can
+        // never land the slider on the default value.
+        var m = new SettingMetadataCatalog().Find("SandboxSettings", key)!;
+        var min = m.Min!.Value;
+        var max = m.Max!.Value;
+        var step = m.Step!.Value;
+
+        Assert.True(double.TryParse(
+            m.Default,
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var def),
+            $"{key} default '{m.Default}' is not numeric.");
+
+        Assert.InRange(def, min, max);
+        AssertOnGrid(def - min, step, $"{key} default {def} is off the step grid");
+        AssertOnGrid(max - min, step, $"{key} max {max} is off the step grid");
+    }
+
+    [Fact]
+    public void Structural_support_limit_is_bounded()
+    {
+        // Regression: this slider used to ship without a max.
+        var m = new SettingMetadataCatalog().Find("SandboxSettings", "StructuralSupportLimit");
+        Assert.NotNull(m);
+        Assert.NotNull(m!.Max);
+        Assert.True(m.Max <= 100, "Structural Support Limit max should be a sane bound.");
+    }
+
+    [Theory]
+    [InlineData("StructuralSupportLimit")]
+    [InlineData("BonusPerkPoints")]
+    [InlineData("BaseInventorySize")]
+    public void Whole_number_settings_have_an_integer_step(string key)
+    {
+        var m = new SettingMetadataCatalog().Find("SandboxSettings", key)!;
+        Assert.NotNull(m.Step);
+        Assert.True(m.Step!.Value >= 1.0 && m.Step.Value % 1.0 == 0.0,
+            $"{key} should have a whole-number step so its slider snaps to integers.");
+    }
+
+    private static void AssertOnGrid(double span, double step, string because)
+    {
+        var steps = span / step;
+        Assert.True(Math.Abs(steps - Math.Round(steps)) < 0.001, because);
+    }
 }

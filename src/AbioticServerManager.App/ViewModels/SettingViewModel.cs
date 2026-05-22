@@ -102,6 +102,17 @@ public sealed partial class SettingViewModel : ObservableObject
     public double Step =>
         _descriptor.Metadata?.Step ?? (LooksIntegral ? 1 : 0.05);
 
+    /// <summary>
+    /// True when this setting is whole-number-valued (its step is a positive
+    /// integer) — e.g. Base Inventory Size, Bonus Perk Points, Structural
+    /// Support Limit. Drives integer snapping so the slider cannot produce a
+    /// fractional value like "12.7 inventory slots".
+    /// </summary>
+    public bool IsInteger => Step >= 1.0 && Step % 1.0 == 0.0;
+
+    /// <summary>Page-step for keyboard PageUp/PageDown on the slider.</summary>
+    public double LargeStep => Step * 10.0;
+
     public string RangeText => _descriptor.Metadata is { Min: { } min, Max: { } max }
         ? $"{Format(min)} – {Format(max)}"
         : ControlType == SettingControlType.Slider
@@ -138,7 +149,9 @@ public sealed partial class SettingViewModel : ObservableObject
             NumberStyles.Float,
             CultureInfo.InvariantCulture,
             out var d) ? d : Minimum;
-        set => Commit(Format(value));
+        // Whole-number settings never store a fractional value, even if the
+        // slider's snapping leaves a rounding sliver.
+        set => Commit(Format(IsInteger ? Math.Round(value) : value));
     }
 
     public string SelectedOption
@@ -163,6 +176,8 @@ public sealed partial class SettingViewModel : ObservableObject
         OnPropertyChanged(nameof(Minimum));
         OnPropertyChanged(nameof(Maximum));
         OnPropertyChanged(nameof(Step));
+        OnPropertyChanged(nameof(LargeStep));
+        OnPropertyChanged(nameof(IsInteger));
         OnPropertyChanged(nameof(RangeText));
     }
 

@@ -32,6 +32,15 @@
          standard accent teal so an admin in the roster reads at a glance. -->
     <Color x:Key="AdminAccentColor">#FFE0B65C</Color>
     <SolidColorBrush x:Key="AdminAccentBrush" Color="{StaticResource AdminAccentColor}" />
+
+    <!-- §4.8 vertical-tab category accents. Configuration tabs (Server, World,
+         Player, Enemy, Admin, Advanced) get a cool seafoam; operational tabs
+         (Network, Backups, Logs & Status) get a warmer slate-blue so the two
+         groups read at a glance without overpowering the existing palette. -->
+    <Color x:Key="ConfigTabAccentColor">#FF8CD9D2</Color>
+    <Color x:Key="OpsTabAccentColor">#FFB6A8E0</Color>
+    <SolidColorBrush x:Key="ConfigTabAccentBrush" Color="{StaticResource ConfigTabAccentColor}" />
+    <SolidColorBrush x:Key="OpsTabAccentBrush" Color="{StaticResource OpsTabAccentColor}" />
     <SolidColorBrush x:Key="AccentTextBrush" Color="#FF061014" />
     <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
     <SolidColorBrush x:Key="MutedTextBrush" Color="{StaticResource MutedTextColor}" />
@@ -533,6 +542,71 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="border" Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
                             <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Dark-theme tooltip. Without this, tooltips inherit the light Foreground
+         onto the system's pale default background and render as an unreadable
+         blank box. Applies app-wide to every ToolTip (string or element). -->
+    <Style TargetType="{x:Type ToolTip}">
+        <Setter Property="Background" Value="{StaticResource SurfaceRaisedBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="9,6" />
+        <Setter Property="MaxWidth" Value="340" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ToolTip}">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4"
+                            Padding="{TemplateBinding Padding}">
+                        <TextBlock Text="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}"
+                                   Foreground="{TemplateBinding Foreground}"
+                                   TextWrapping="Wrap"
+                                   FontSize="12" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- D2: toggle switch for boolean settings — replaces the checkbox so on/off
+         reads at a glance. A ToggleButton styled as a sliding pill. -->
+    <Style x:Key="ToggleSwitch" TargetType="{x:Type ToggleButton}">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ToggleButton}">
+                    <Border x:Name="track" Width="42" Height="22"
+                            Background="{StaticResource SurfaceRaisedBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="11">
+                        <Border x:Name="thumb" Width="16" Height="16"
+                                HorizontalAlignment="Left" VerticalAlignment="Center"
+                                Margin="3,0,0,0" CornerRadius="8"
+                                Background="{StaticResource MutedTextBrush}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="track" Property="Background" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="track" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="thumb" Property="HorizontalAlignment" Value="Right" />
+                            <Setter TargetName="thumb" Property="Margin" Value="0,0,3,0" />
+                            <Setter TargetName="thumb" Property="Background" Value="{StaticResource AccentTextBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="track" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45" />

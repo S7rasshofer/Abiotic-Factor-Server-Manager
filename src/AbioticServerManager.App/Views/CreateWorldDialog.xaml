@@ -1,0 +1,35 @@
+<Window x:Class="AbioticServerManager.App.Views.CreateWorldDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Facility Overseer — Create World"
+        Width="500" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        FontFamily="Segoe UI" FontSize="13"
+        Background="#0E1218" Foreground="#E6ECF2">
+    <StackPanel Margin="20">
+        <TextBlock Text="Create a new world"
+                   FontSize="18" FontWeight="Bold" Margin="0,0,0,4" />
+        <TextBlock TextWrapping="Wrap" Margin="0,0,0,16" Foreground="#A8B5C1"
+                   Text="Name the world and choose a starting difficulty. You can fine-tune every setting afterward on the World, Player and Enemy tabs." />
+
+        <TextBlock Text="World name" Margin="0,0,0,2" Foreground="#A8B5C1" />
+        <TextBox x:Name="NameBox" Margin="0,0,0,16" Padding="4,3" />
+
+        <TextBlock Text="Difficulty" Margin="0,0,0,2" Foreground="#A8B5C1" />
+        <ComboBox x:Name="DifficultyBox" SelectionChanged="OnDifficultyChanged">
+            <ComboBoxItem Content="Normal" />
+            <ComboBoxItem Content="Hard" />
+            <ComboBoxItem Content="Apocalyptic" />
+        </ComboBox>
+        <TextBlock x:Name="DifficultyHint" Margin="0,4,0,18" Foreground="#A8B5C1"
+                   FontSize="11" TextWrapping="Wrap" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Cancel" Padding="14,5" Margin="0,0,8,0" IsCancel="True" />
+            <Button Content="Create World" Padding="14,5" IsDefault="True"
+                    Click="OnCreateClicked" />
+        </StackPanel>
+    </StackPanel>
+</Window>

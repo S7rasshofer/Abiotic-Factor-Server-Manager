@@ -28,6 +28,10 @@
         <conv:CheckStatusToBrushConverter x:Key="CheckStatusToBrush" />
         <conv:NetworkCheckStatusToBrushConverter x:Key="NetworkCheckStatusToBrush" />
         <conv:PositiveIntToVisibilityConverter x:Key="PositiveIntToVisibility" />
+        <conv:IntegritySeverityToBrushConverter x:Key="IntegritySeverityToBrush" />
+        <conv:RecommendedPriorityToBrushConverter x:Key="RecommendedPriorityToBrush" />
+        <conv:BackupEntryToConfidenceConverter x:Key="BackupConfidence" />
+        <conv:StartupPhaseStatusToBrushConverter x:Key="StartupPhaseStatusToBrush" />
         <conv:IsAdminToBrushConverter x:Key="IsAdminToBrush"
                                       AdminBrush="{StaticResource AdminAccentBrush}"
                                       DefaultBrush="{StaticResource TextBrush}" />
@@ -51,6 +55,39 @@
                 </DockPanel>
             </Border>
         </DataTemplate>
+
+        <!-- UI Tweaks A2/A3: the title-card world-action cluster. Collapsed by
+             default (MaxWidth 0); slides open/closed with AreWorldActionsExpanded. -->
+        <Style x:Key="WorldActionsClusterStyle" TargetType="StackPanel">
+            <Setter Property="Orientation" Value="Horizontal" />
+            <Setter Property="ClipToBounds" Value="True" />
+            <Setter Property="MaxWidth" Value="0" />
+            <Setter Property="Opacity" Value="0" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding AreWorldActionsExpanded}" Value="True">
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="MaxWidth"
+                                                 To="640" Duration="0:0:0.22" />
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 To="1" Duration="0:0:0.22" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="MaxWidth"
+                                                 To="0" Duration="0:0:0.18" />
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 To="0" Duration="0:0:0.18" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid Background="{StaticResource BackgroundBrush}" Margin="14">
@@ -74,9 +111,33 @@
                                    FontSize="11" FontWeight="Bold" />
                     </Border>
                     <StackPanel>
-                        <TextBlock Text="FACILITY OVERSEER"
-                                   FontSize="20" FontWeight="Bold"
-                                   Foreground="{StaticResource TextBrush}" />
+                        <!-- UI Tweaks A4: clicking the title toggles the world-action
+                             cluster (Create / Clone / Delete / Save). -->
+                        <StackPanel Orientation="Horizontal" Background="Transparent"
+                                    Cursor="Hand"
+                                    ToolTip="Show or hide the world action buttons (Create, Clone, Delete, Save).">
+                            <StackPanel.InputBindings>
+                                <MouseBinding Gesture="LeftClick"
+                                              Command="{Binding ToggleWorldActionsCommand}" />
+                            </StackPanel.InputBindings>
+                            <TextBlock Text="FACILITY OVERSEER"
+                                       FontSize="20" FontWeight="Bold"
+                                       Foreground="{StaticResource TextBrush}" />
+                            <TextBlock VerticalAlignment="Center" Margin="7,3,0,0"
+                                       FontSize="12"
+                                       Foreground="{StaticResource MutedTextBrush}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="&#x25B8;" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding AreWorldActionsExpanded}" Value="True">
+                                                <Setter Property="Text" Value="&#x25BE;" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
                         <TextBlock Text="{Binding HeaderInfoText}"
                                    FontSize="10" FontWeight="SemiBold"
                                    Foreground="{StaticResource MutedTextBrush}" />
@@ -84,19 +145,27 @@
                 </StackPanel>
                 <Button DockPanel.Dock="Left" Content="Prepare / Update Server"
                         Style="{StaticResource AccentButton}"
+                        ToolTip="Download, install, or update the Abiotic Factor dedicated server with SteamCMD."
                         Command="{Binding InstallOrUpdateServerCommand}"
                         IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
-                <Button DockPanel.Dock="Left" Content="Create World"
-                        Command="{Binding CreateWorldCommand}" />
-                <Button DockPanel.Dock="Left" Content="Clone"
-                        Command="{Binding CloneWorldCommand}" />
-                <Button DockPanel.Dock="Left" Content="Delete"
-                        Command="{Binding DeleteWorldCommand}" />
-                <Button DockPanel.Dock="Left" Content="Reset Data…" Margin="14,0,0,0"
-                        ToolTip="Erase everything Facility Overseer manages (worlds, backups, server install). Your data-root choice is preserved."
-                        Command="{Binding ResetManagedDataCommand}" />
-                <Button DockPanel.Dock="Right" Content="Save"
-                        Command="{Binding SaveCommand}" />
+
+                <!-- UI Tweaks A2: Create / Clone / Delete / Save grouped into one
+                     collapsible cluster that slides away once a world exists. -->
+                <StackPanel DockPanel.Dock="Left"
+                            Style="{StaticResource WorldActionsClusterStyle}">
+                    <Button Content="Create World"
+                            ToolTip="Create a new managed world."
+                            Command="{Binding CreateWorldCommand}" />
+                    <Button Content="Clone"
+                            ToolTip="Duplicate the selected world's settings into a new world."
+                            Command="{Binding CloneWorldCommand}" />
+                    <Button Content="Delete"
+                            ToolTip="Delete the selected world's profile (the save files are kept)."
+                            Command="{Binding DeleteWorldCommand}" />
+                    <Button Content="Save"
+                            ToolTip="Save changes to the world profiles."
+                            Command="{Binding SaveCommand}" />
+                </StackPanel>
 
                 <!-- LAN / Public IP strip: always visible so the user knows what address
                      friends are reaching this PC at, and can spot a CGNAT / no-public-IP
@@ -107,11 +176,25 @@
                                VerticalAlignment="Center" />
                     <TextBlock Text="{Binding LanIpv4}" FontFamily="Consolas"
                                FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <Button Content="🔒" Margin="4,0,0,0" Padding="6,1"
+                            ToolTip="Show how to lock this LAN IP in your router (DHCP reservation guidance — copies to clipboard)."
+                            Command="{Binding ShowLanIpLockGuidanceCommand}" />
                     <TextBlock Text="  ·  Public " Style="{StaticResource MutedText}"
                                VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding PublicIpv4}" FontFamily="Consolas"
+                    <TextBlock Text="{Binding PublicIpv4Display}" FontFamily="Consolas"
                                FontWeight="SemiBold" VerticalAlignment="Center"
-                               ToolTip="Discovered via a one-shot HTTPS lookup. Click ⟳ to refresh." />
+                               ToolTip="Right-click to show or hide your public IP.">
+                        <TextBlock.ContextMenu>
+                            <ContextMenu Background="{StaticResource SurfaceRaisedBrush}">
+                                <MenuItem Command="{Binding TogglePublicIpVisibilityCommand}">
+                                    <MenuItem.Header>
+                                        <TextBlock Text="{Binding PublicIpToggleLabel}"
+                                                   Foreground="{StaticResource TextBrush}" />
+                                    </MenuItem.Header>
+                                </MenuItem>
+                            </ContextMenu>
+                        </TextBlock.ContextMenu>
+                    </TextBlock>
                     <Button Content="⟳" Margin="6,0,0,0" Padding="6,1"
                             ToolTip="Refresh public IP"
                             Command="{Binding RefreshPublicIpCommand}" />
@@ -171,7 +254,8 @@
         <!-- Horizontal world tabs -->
         <TabControl Grid.Row="2"
                     ItemsSource="{Binding Worlds}"
-                    SelectedItem="{Binding SelectedWorld, Mode=TwoWay}">
+                    SelectedItem="{Binding SelectedWorld, Mode=TwoWay}"
+                    Visibility="{Binding HasWorlds, Converter={StaticResource BoolToVisibility}}">
             <TabControl.ItemTemplate>
                 <DataTemplate DataType="{x:Type vm:ServerInstanceViewModel}">
                     <StackPanel Orientation="Horizontal">
@@ -219,7 +303,8 @@
                                         SelectedIndex="{Binding SelectedVerticalTabIndex, Mode=TwoWay}">
 
                             <!-- ===================== SERVER TAB ===================== -->
-                            <TabItem Header="Server">
+                            <!-- §4.8: config-group accent. -->
+                            <TabItem Header="Server" Foreground="{StaticResource ConfigTabAccentBrush}">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20">
                                     <StackPanel MaxWidth="640" HorizontalAlignment="Left">
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
@@ -331,7 +416,8 @@
                             </TabItem>
 
                             <!-- ===================== NETWORK TAB ===================== -->
-                            <TabItem Header="Network">
+                            <!-- §4.8: ops-group accent. -->
+                            <TabItem Header="Network" Foreground="{StaticResource OpsTabAccentBrush}">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20">
                                     <StackPanel MaxWidth="780" HorizontalAlignment="Left">
                                         <TextBlock Text="Network" Style="{StaticResource HeaderText}" />
@@ -351,6 +437,63 @@
                                         <TextBlock Text="{Binding NetworkStatusText}"
                                                    Style="{StaticResource MutedText}"
                                                    Margin="0,0,0,12" />
+
+                                        <!-- §4.9 lobby code: the in-game "LOBBY CODE" players can type to
+                                             join directly. Captured from the running server's EOS session log. -->
+                                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="4"
+                                                Padding="12" Margin="0,0,0,12"
+                                                Visibility="{Binding LobbyCode, Converter={StaticResource StringToVisibility}}">
+                                            <StackPanel>
+                                                <TextBlock Text="LOBBY CODE" Foreground="{StaticResource AccentBrush}"
+                                                           FontWeight="Bold" Margin="0,0,0,6" />
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Border Background="{StaticResource SurfaceBrush}" CornerRadius="3"
+                                                            Padding="14,4" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding LobbyCode}" FontFamily="Consolas"
+                                                                   FontSize="18" FontWeight="Bold" />
+                                                    </Border>
+                                                    <Button Content="Copy" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                            Command="{Binding DataContext.CopyLobbyCodeCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                </StackPanel>
+                                                <TextBlock Style="{StaticResource MutedText}" TextWrapping="Wrap"
+                                                           Margin="0,6,0,0"
+                                                           Text="Friends can enter this code in Abiotic Factor to join directly — no IP address needed. It changes each time the server restarts. If the server has a password, players still need it." />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- §4.7 network confidence: 0-100 score + band + how to improve. -->
+                                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="4"
+                                                Padding="12" Margin="0,0,0,12"
+                                                Visibility="{Binding HasNetworkConfidence, Converter={StaticResource BoolToVisibility}}">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="NETWORK CONFIDENCE"
+                                                               Foreground="{StaticResource AccentBrush}"
+                                                               FontWeight="Bold" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding NetworkConfidenceSummary}"
+                                                               FontWeight="SemiBold" VerticalAlignment="Center"
+                                                               Margin="10,0,0,0" />
+                                                </StackPanel>
+                                                <ItemsControl ItemsSource="{Binding NetworkConfidenceStrengths}"
+                                                              Margin="0,8,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding}" Style="{StaticResource MutedText}"
+                                                                       TextWrapping="Wrap" Margin="0,1" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <ItemsControl ItemsSource="{Binding NetworkConfidenceLifts}"
+                                                              Margin="0,6,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding StringFormat='To improve: {0}'}"
+                                                                       TextWrapping="Wrap" Margin="0,1" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
 
                                         <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="4"
                                                 Padding="12" Margin="0,0,0,12">
@@ -397,11 +540,6 @@
                                                                Text="Current LAN IPv4" Style="{StaticResource MutedText}" />
                                                     <TextBlock Grid.Row="4" Grid.Column="1"
                                                                Text="{Binding RouterTargetText}" TextWrapping="Wrap" />
-
-                                                    <TextBlock Grid.Row="5" Grid.Column="0"
-                                                               Text="Router checklist target" Style="{StaticResource MutedText}" />
-                                                    <TextBlock Grid.Row="5" Grid.Column="1"
-                                                               Text="{Binding LastRouterChecklistText}" TextWrapping="Wrap" />
                                                 </Grid>
 
                                                 <TextBlock Text="{Binding LastFirewallRepairText}"
@@ -412,52 +550,92 @@
                                         <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="4"
                                                 Padding="12" Margin="0,0,0,12">
                                             <StackPanel>
+                                                <StackPanel.Resources>
+                                                    <!-- Group the checks by Category so the Check Setup
+                                                         results read as a few collapsible troubleshooting
+                                                         sections instead of one long flat list. -->
+                                                    <CollectionViewSource x:Key="GroupedChecks"
+                                                                          Source="{Binding NetworkChecks}">
+                                                        <CollectionViewSource.GroupDescriptions>
+                                                            <PropertyGroupDescription PropertyName="Category" />
+                                                        </CollectionViewSource.GroupDescriptions>
+                                                    </CollectionViewSource>
+                                                </StackPanel.Resources>
+
                                                 <TextBlock Text="DIAGNOSTIC CHECKS"
                                                            Foreground="{StaticResource AccentBrush}"
                                                            FontWeight="Bold" Margin="0,0,0,8" />
                                                 <TextBlock Text="{Binding FirewallSummaryText}"
                                                            TextWrapping="Wrap" Margin="0,0,0,10" />
 
-                                                <ItemsControl ItemsSource="{Binding NetworkChecks}">
+                                                <ItemsControl ItemsSource="{Binding Source={StaticResource GroupedChecks}}">
+                                                    <!-- One collapsible section per check category. -->
+                                                    <ItemsControl.GroupStyle>
+                                                        <GroupStyle>
+                                                            <GroupStyle.ContainerStyle>
+                                                                <Style TargetType="GroupItem">
+                                                                    <Setter Property="Template">
+                                                                        <Setter.Value>
+                                                                            <ControlTemplate TargetType="GroupItem">
+                                                                                <Expander IsExpanded="True" Margin="0,0,0,8"
+                                                                                          Background="{StaticResource SurfaceBrush}"
+                                                                                          Padding="8,4">
+                                                                                    <Expander.Header>
+                                                                                        <TextBlock FontWeight="Bold">
+                                                                                            <Run Text="{Binding Name, Mode=OneWay}" />
+                                                                                            <Run Text="{Binding ItemCount, Mode=OneWay, StringFormat=' ({0})'}"
+                                                                                                 Foreground="{StaticResource MutedTextBrush}" />
+                                                                                        </TextBlock>
+                                                                                    </Expander.Header>
+                                                                                    <ItemsPresenter Margin="0,6,0,0" />
+                                                                                </Expander>
+                                                                            </ControlTemplate>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                </Style>
+                                                            </GroupStyle.ContainerStyle>
+                                                        </GroupStyle>
+                                                    </ItemsControl.GroupStyle>
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
+                                                            <!-- Compact per-check row: status + label always
+                                                                 visible; value / summary / fix on expand. -->
                                                             <Border Background="{StaticResource SurfaceBrush}"
-                                                                    CornerRadius="4" Padding="10,8" Margin="0,0,0,6">
-                                                                <StackPanel>
-                                                                    <DockPanel LastChildFill="True">
-                                                                        <TextBlock DockPanel.Dock="Right"
-                                                                                   Text="{Binding StatusLabel}"
-                                                                                   Foreground="{Binding Status, Converter={StaticResource NetworkCheckStatusToBrush}}"
-                                                                                   FontWeight="SemiBold"
-                                                                                   Margin="12,0,0,0" />
-                                                                        <StackPanel>
-                                                                            <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
-                                                                            <TextBlock Text="{Binding Category}"
-                                                                                       Style="{StaticResource MutedText}"
-                                                                                       FontSize="11" />
-                                                                        </StackPanel>
-                                                                    </DockPanel>
-
-                                                                    <TextBlock Text="{Binding Value}"
-                                                                               FontFamily="Consolas"
-                                                                               Style="{StaticResource MutedText}"
-                                                                               TextWrapping="WrapWithOverflow"
-                                                                               Margin="0,6,0,0"
-                                                                               Visibility="{Binding Value, Converter={StaticResource StringToVisibility}}" />
-                                                                    <TextBlock Text="{Binding Summary}"
-                                                                               TextWrapping="Wrap"
-                                                                               Margin="0,6,0,0" />
-                                                                    <TextBlock Text="{Binding Details}"
-                                                                               Style="{StaticResource MutedText}"
-                                                                               TextWrapping="Wrap"
-                                                                               Margin="0,3,0,0"
-                                                                               Visibility="{Binding Details, Converter={StaticResource StringToVisibility}}" />
-                                                                    <TextBlock Text="{Binding Remediation}"
-                                                                               Foreground="{StaticResource WarnBrush}"
-                                                                               TextWrapping="Wrap"
-                                                                               Margin="0,3,0,0"
-                                                                               Visibility="{Binding Remediation, Converter={StaticResource StringToVisibility}}" />
-                                                                </StackPanel>
+                                                                    CornerRadius="4" Margin="0,0,0,4">
+                                                                <Expander Padding="8,2">
+                                                                    <Expander.Header>
+                                                                        <DockPanel LastChildFill="True" MinWidth="420">
+                                                                            <TextBlock DockPanel.Dock="Right"
+                                                                                       Text="{Binding StatusLabel}"
+                                                                                       Foreground="{Binding Status, Converter={StaticResource NetworkCheckStatusToBrush}}"
+                                                                                       FontWeight="SemiBold"
+                                                                                       Margin="12,0,0,0" />
+                                                                            <TextBlock Text="{Binding Label}"
+                                                                                       FontWeight="SemiBold"
+                                                                                       VerticalAlignment="Center" />
+                                                                        </DockPanel>
+                                                                    </Expander.Header>
+                                                                    <StackPanel Margin="0,4,0,6">
+                                                                        <TextBlock Text="{Binding Value}"
+                                                                                   FontFamily="Consolas"
+                                                                                   Style="{StaticResource MutedText}"
+                                                                                   TextWrapping="WrapWithOverflow"
+                                                                                   Visibility="{Binding Value, Converter={StaticResource StringToVisibility}}" />
+                                                                        <TextBlock Text="{Binding Summary}"
+                                                                                   TextWrapping="Wrap"
+                                                                                   Margin="0,4,0,0" />
+                                                                        <TextBlock Text="{Binding Details}"
+                                                                                   Style="{StaticResource MutedText}"
+                                                                                   TextWrapping="Wrap"
+                                                                                   Margin="0,3,0,0"
+                                                                                   Visibility="{Binding Details, Converter={StaticResource StringToVisibility}}" />
+                                                                        <TextBlock Text="{Binding Remediation}"
+                                                                                   Foreground="{StaticResource WarnBrush}"
+                                                                                   TextWrapping="Wrap"
+                                                                                   Margin="0,3,0,0"
+                                                                                   Visibility="{Binding Remediation, Converter={StaticResource StringToVisibility}}" />
+                                                                    </StackPanel>
+                                                                </Expander>
                                                             </Border>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
@@ -531,41 +709,44 @@
                                 </ScrollViewer>
                             </TabItem>
 
-                            <TabItem Header="World">
+                            <!-- §4.x dynamic sandbox tabs: one sub-tab per category discovered
+                                 in SandboxSettings.ini. A new category in a future game update
+                                 appears here automatically — nothing is hardcoded. The Save
+                                 Sandbox bar is world-level so it sits once above the sub-tabs. -->
+                            <TabItem Header="Settings" Foreground="{StaticResource ConfigTabAccentBrush}">
                                 <DockPanel>
                                     <ContentControl DockPanel.Dock="Top"
                                                     ContentTemplate="{StaticResource SandboxToolbar}"
                                                     Content="{Binding}" />
-                                    <local:SandboxCategoryPanel DataContext="{Binding Sandbox}"
-                                        ItemsSource="{Binding WorldSettings}"
-                                        EmptyHint="Create a world to edit its sandbox settings. The real save folder is generated when the server is started." />
+                                    <TextBlock DockPanel.Dock="Top" Margin="16,12,16,0"
+                                               Style="{StaticResource MutedText}" TextWrapping="Wrap"
+                                               Text="Create a world and install the server to populate these settings. Tabs are generated from the categories Abiotic Factor reports."
+                                               Visibility="{Binding Sandbox.HasCategories, Converter={StaticResource InvBoolToVisibility}}" />
+                                    <TabControl ItemsSource="{Binding Sandbox.Categories}"
+                                                TabStripPlacement="Left"
+                                                Background="Transparent" Margin="0,6,0,0"
+                                                Visibility="{Binding Sandbox.HasCategories, Converter={StaticResource BoolToVisibility}}">
+                                        <TabControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                            </DataTemplate>
+                                        </TabControl.ItemTemplate>
+                                        <TabControl.ContentTemplate>
+                                            <DataTemplate>
+                                                <local:SandboxCategoryPanel
+                                                    ItemsSource="{Binding Settings}"
+                                                    EmptyHint="{Binding EmptyHint}" />
+                                            </DataTemplate>
+                                        </TabControl.ContentTemplate>
+                                    </TabControl>
                                 </DockPanel>
                             </TabItem>
-                            <TabItem Header="Player">
-                                <DockPanel>
-                                    <ContentControl DockPanel.Dock="Top"
-                                                    ContentTemplate="{StaticResource SandboxToolbar}"
-                                                    Content="{Binding}" />
-                                    <local:SandboxCategoryPanel DataContext="{Binding Sandbox}"
-                                        ItemsSource="{Binding PlayerSettings}"
-                                        EmptyHint="Player and survival settings appear here automatically once the server is installed." />
-                                </DockPanel>
-                            </TabItem>
-                            <TabItem Header="Enemy">
-                                <DockPanel>
-                                    <ContentControl DockPanel.Dock="Top"
-                                                    ContentTemplate="{StaticResource SandboxToolbar}"
-                                                    Content="{Binding}" />
-                                    <local:SandboxCategoryPanel DataContext="{Binding Sandbox}"
-                                        ItemsSource="{Binding EnemySettings}"
-                                        EmptyHint="Enemy spawn, health and damage settings appear here automatically once the server is installed." />
-                                </DockPanel>
-                            </TabItem>
-                            <TabItem>
+                            <TabItem Foreground="{StaticResource ConfigTabAccentBrush}">
                                 <TabItem.Header>
                                     <!-- §3.2: small badge with the ban count when non-zero. -->
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="Admin" VerticalAlignment="Center" />
+                                        <TextBlock Text="Admin" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource ConfigTabAccentBrush}" />
                                         <Border Margin="6,0,0,0" Padding="6,1" CornerRadius="8"
                                                 Background="{StaticResource ErrorBrush}"
                                                 VerticalAlignment="Center"
@@ -722,7 +903,7 @@
                                     </TabItem>
                                 </TabControl>
                             </TabItem>
-                            <TabItem Header="Backups">
+                            <TabItem Header="Backups" Foreground="{StaticResource OpsTabAccentBrush}">
                                 <Grid Margin="20">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
@@ -774,12 +955,40 @@
                                                                 <TextBlock Text="{Binding SizeText, StringFormat='  ·  {0}'}"
                                                                            Style="{StaticResource MutedText}" />
                                                             </StackPanel>
-                                                            <TextBlock Style="{StaticResource MutedText}" Margin="0,2,0,0">
-                                                                <Run Text="Includes:" />
-                                                                <Run Text="{Binding IncludedWorldSave, StringFormat='world={0}', Mode=OneWay}" />
-                                                                <Run Text="{Binding IncludedSandboxIni, StringFormat='sandbox={0}', Mode=OneWay}" />
-                                                                <Run Text="{Binding IncludedAdminIni, StringFormat='admins={0}', Mode=OneWay}" />
-                                                            </TextBlock>
+                                                            <!-- §4.4 backup confidence badge: Full / Partial / Limited
+                                                                 + age, evaluated at bind time. Tooltip explains gaps. -->
+                                                            <ContentControl Content="{Binding Converter={StaticResource BackupConfidence}}"
+                                                                            HorizontalAlignment="Left" Margin="0,4,0,0">
+                                                                <ContentControl.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal" ToolTip="{Binding Detail}">
+                                                                            <Border CornerRadius="3" Padding="7,1" VerticalAlignment="Center">
+                                                                                <Border.Style>
+                                                                                    <Style TargetType="Border">
+                                                                                        <Setter Property="Background" Value="#A8B5C1" />
+                                                                                        <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding Level}" Value="Full">
+                                                                                                <Setter Property="Background" Value="#79D66B" />
+                                                                                            </DataTrigger>
+                                                                                            <DataTrigger Binding="{Binding Level}" Value="Partial">
+                                                                                                <Setter Property="Background" Value="#E6B84B" />
+                                                                                            </DataTrigger>
+                                                                                        </Style.Triggers>
+                                                                                    </Style>
+                                                                                </Border.Style>
+                                                                                <TextBlock Text="{Binding Label}" FontWeight="SemiBold"
+                                                                                           FontSize="11" Foreground="#0B0F14" />
+                                                                            </Border>
+                                                                            <TextBlock Text="{Binding AgeLabel}" Style="{StaticResource MutedText}"
+                                                                                       VerticalAlignment="Center" Margin="8,0,0,0" />
+                                                                            <TextBlock Text="· stale" FontSize="11" FontWeight="SemiBold"
+                                                                                       Foreground="#E6B84B" VerticalAlignment="Center"
+                                                                                       Margin="6,0,0,0"
+                                                                                       Visibility="{Binding IsStale, Converter={StaticResource BoolToVisibility}}" />
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </ContentControl.ContentTemplate>
+                                                            </ContentControl>
                                                         </StackPanel>
                                                     </Border>
                                                 </DataTemplate>
@@ -791,9 +1000,10 @@
                             </TabItem>
 
                             <!-- ===================== LOGS &amp; STATUS ===================== -->
-                            <TabItem Header="Logs &amp; Status">
+                            <TabItem Header="Logs &amp; Status" Foreground="{StaticResource OpsTabAccentBrush}">
                                 <Grid Margin="20">
                                     <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="*" />
                                     </Grid.RowDefinitions>
@@ -823,7 +1033,37 @@
                                                 Command="{Binding DataContext.OpenWorldFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                                     </DockPanel>
 
-                                    <TabControl Grid.Row="1" Background="Transparent">
+                                    <!-- §4.6 startup sequence timeline: 7-phase progress, shown while the
+                                         server is starting/running or after a failed startup. -->
+                                    <Border Grid.Row="1" Background="{StaticResource SurfaceAltBrush}"
+                                            CornerRadius="4" Padding="12,8" Margin="0,0,0,10"
+                                            Visibility="{Binding HasStartupSequence, Converter={StaticResource BoolToVisibility}}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding StartupSummary}" FontWeight="SemiBold"
+                                                       Margin="0,0,0,6" TextWrapping="Wrap" />
+                                            <ItemsControl ItemsSource="{Binding StartupPhases}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel Orientation="Horizontal" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                                    Margin="0,2,12,2">
+                                                            <Ellipse Width="10" Height="10" VerticalAlignment="Center"
+                                                                     Fill="{Binding Status, Converter={StaticResource StartupPhaseStatusToBrush}}" />
+                                                            <TextBlock Text="{Binding Label}" FontSize="11"
+                                                                       VerticalAlignment="Center" Margin="5,0,0,0" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <TabControl Grid.Row="2" Background="Transparent"
+                                                SelectedIndex="{Binding LogsSubTabIndex, Mode=TwoWay}">
                                         <TabItem Header="Log">
                                             <Grid Margin="0,10,0,0">
                                                 <Grid.RowDefinitions>
@@ -831,27 +1071,176 @@
                                                     <RowDefinition Height="*" />
                                                 </Grid.RowDefinitions>
 
-                                                <ItemsControl Grid.Row="0" ItemsSource="{Binding Diagnostics}" Margin="0,0,0,12">
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <Border Background="{StaticResource SurfaceAltBrush}"
-                                                                    CornerRadius="4" Padding="10,6" Margin="0,0,0,4">
-                                                                <StackPanel>
-                                                                    <StackPanel Orientation="Horizontal">
-                                                                        <Ellipse Width="9" Height="9" Margin="0,0,8,0"
-                                                                                 Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
-                                                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
-                                                                        <TextBlock Text="{Binding Code, StringFormat=' [{0}]'}"
-                                                                                   Style="{StaticResource MutedText}" />
-                                                                    </StackPanel>
-                                                                    <TextBlock Text="{Binding Message}" Style="{StaticResource MutedText}" Margin="17,2,0,0" />
-                                                                    <TextBlock Text="{Binding SuggestedFix}" Style="{StaticResource MutedText}"
-                                                                               Margin="17,2,0,0" FontStyle="Italic" />
-                                                                </StackPanel>
-                                                            </Border>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
+                                                <!-- Phase 2 guidance stack: §4.3 recommended actions, §4.5 world
+                                                     integrity, and the §4.1 diagnostic cards. Centered, width-capped,
+                                                     height-capped with a scroll so a long stack never pushes the
+                                                     log offscreen. -->
+                                                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto"
+                                                              MaxHeight="300" Margin="0,0,0,12">
+                                                    <StackPanel HorizontalAlignment="Center" MaxWidth="720">
+
+                                                        <!-- §4.2 guided recovery flow: shown when the world is
+                                                             Blocked; ordered steps with one-click action buttons. -->
+                                                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="4"
+                                                                BorderBrush="#FF5F57" BorderThickness="1"
+                                                                Padding="12,10" Margin="0,0,0,6"
+                                                                Visibility="{Binding HasRecoveryFlow, Converter={StaticResource BoolToVisibility}}">
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding RecoveryFlowTitle}" FontWeight="Bold"
+                                                                           FontSize="13" Foreground="#FF8A84"
+                                                                           TextWrapping="Wrap" />
+                                                                <TextBlock Text="{Binding RecoveryFlowSummary}"
+                                                                           Style="{StaticResource MutedText}"
+                                                                           TextWrapping="Wrap" Margin="0,4,0,8" />
+                                                                <ItemsControl ItemsSource="{Binding RecoverySteps}">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Grid Margin="0,3">
+                                                                                <Grid.ColumnDefinitions>
+                                                                                    <ColumnDefinition Width="Auto" />
+                                                                                    <ColumnDefinition Width="*" />
+                                                                                    <ColumnDefinition Width="Auto" />
+                                                                                </Grid.ColumnDefinitions>
+                                                                                <TextBlock Grid.Column="0" FontWeight="SemiBold"
+                                                                                           Margin="0,0,8,0" VerticalAlignment="Top"
+                                                                                           Text="{Binding Order, StringFormat='{}{0}.'}" />
+                                                                                <StackPanel Grid.Column="1">
+                                                                                    <TextBlock Text="{Binding Title}"
+                                                                                               FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                                                    <TextBlock Text="{Binding Detail}"
+                                                                                               Style="{StaticResource MutedText}"
+                                                                                               TextWrapping="Wrap" />
+                                                                                </StackPanel>
+                                                                                <Button Grid.Column="2" Content="{Binding ActionLabel}"
+                                                                                        Margin="8,0,0,0" VerticalAlignment="Top"
+                                                                                        Visibility="{Binding ActionHint, Converter={StaticResource StringToVisibility}}"
+                                                                                        Command="{Binding DataContext.RunRecoveryStepCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                                        CommandParameter="{Binding}" />
+                                                                            </Grid>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </StackPanel>
+                                                        </Border>
+
+                                                        <!-- §4.3 Recommended Actions: ranked next steps; the row
+                                                             button runs the matching command via CommandHint. -->
+                                                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="4"
+                                                                Padding="12,10" Margin="0,0,0,6"
+                                                                Visibility="{Binding HasRecommendedActions, Converter={StaticResource BoolToVisibility}}">
+                                                            <StackPanel>
+                                                                <TextBlock Text="Recommended next steps"
+                                                                           FontWeight="SemiBold" Margin="0,0,0,6" />
+                                                                <ItemsControl ItemsSource="{Binding RecommendedActions}">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Grid Margin="0,3">
+                                                                                <Grid.ColumnDefinitions>
+                                                                                    <ColumnDefinition Width="Auto" />
+                                                                                    <ColumnDefinition Width="*" />
+                                                                                    <ColumnDefinition Width="Auto" />
+                                                                                </Grid.ColumnDefinitions>
+                                                                                <Ellipse Grid.Column="0" Width="9" Height="9"
+                                                                                         Margin="0,4,8,0" VerticalAlignment="Top"
+                                                                                         Fill="{Binding Priority, Converter={StaticResource RecommendedPriorityToBrush}}" />
+                                                                                <StackPanel Grid.Column="1">
+                                                                                    <TextBlock Text="{Binding Title}"
+                                                                                               FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                                                    <TextBlock Text="{Binding Detail}"
+                                                                                               Style="{StaticResource MutedText}"
+                                                                                               TextWrapping="Wrap" />
+                                                                                </StackPanel>
+                                                                                <Button Grid.Column="2" Content="Do this"
+                                                                                        Margin="8,0,0,0" VerticalAlignment="Top"
+                                                                                        Visibility="{Binding CommandHint, Converter={StaticResource StringToVisibility}}"
+                                                                                        Command="{Binding DataContext.RunRecommendedActionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                                        CommandParameter="{Binding}" />
+                                                                            </Grid>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </StackPanel>
+                                                        </Border>
+
+                                                        <!-- §4.5 World Integrity: pre-start blockers / warnings. -->
+                                                        <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="4"
+                                                                Padding="12,10" Margin="0,0,0,6"
+                                                                Visibility="{Binding HasIntegrityFindings, Converter={StaticResource BoolToVisibility}}">
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding IntegritySummary}"
+                                                                           FontWeight="SemiBold" Margin="0,0,0,6"
+                                                                           TextWrapping="Wrap" />
+                                                                <ItemsControl ItemsSource="{Binding IntegrityFindings}">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border Background="{StaticResource SurfaceBrush}"
+                                                                                    CornerRadius="4" Margin="0,0,0,4">
+                                                                                <Expander Padding="10,4">
+                                                                                    <Expander.Header>
+                                                                                        <StackPanel Orientation="Horizontal">
+                                                                                            <Ellipse Width="9" Height="9" Margin="0,0,8,0"
+                                                                                                     VerticalAlignment="Center"
+                                                                                                     Fill="{Binding Severity, Converter={StaticResource IntegritySeverityToBrush}}" />
+                                                                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                                                                                       VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                                                        </StackPanel>
+                                                                                    </Expander.Header>
+                                                                                    <StackPanel Margin="17,4,0,6">
+                                                                                        <TextBlock Text="{Binding Detail}"
+                                                                                                   Style="{StaticResource MutedText}"
+                                                                                                   TextWrapping="Wrap" />
+                                                                                        <TextBlock Text="{Binding SuggestedFix}"
+                                                                                                   Style="{StaticResource MutedText}"
+                                                                                                   TextWrapping="Wrap" FontStyle="Italic"
+                                                                                                   Margin="0,4,0,0"
+                                                                                                   Visibility="{Binding SuggestedFix, Converter={StaticResource StringToVisibility}}" />
+                                                                                    </StackPanel>
+                                                                                </Expander>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </StackPanel>
+                                                        </Border>
+
+                                                        <!-- §4.1 compact diagnostic cards: severity dot + title
+                                                             visible by default, click to expand message + fix. -->
+                                                        <ItemsControl ItemsSource="{Binding Diagnostics}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Border Background="{StaticResource SurfaceAltBrush}"
+                                                                            CornerRadius="4" Margin="0,0,0,4"
+                                                                            HorizontalAlignment="Stretch">
+                                                                        <Expander Padding="10,4">
+                                                                            <Expander.Header>
+                                                                                <StackPanel Orientation="Horizontal">
+                                                                                    <Ellipse Width="9" Height="9" Margin="0,0,8,0"
+                                                                                             VerticalAlignment="Center"
+                                                                                             Fill="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                                                                               VerticalAlignment="Center" />
+                                                                                    <TextBlock Text="{Binding Code, StringFormat=' [{0}]'}"
+                                                                                               Style="{StaticResource MutedText}"
+                                                                                               VerticalAlignment="Center" />
+                                                                                </StackPanel>
+                                                                            </Expander.Header>
+                                                                            <StackPanel Margin="17,4,0,6">
+                                                                                <TextBlock Text="{Binding Message}"
+                                                                                           Style="{StaticResource MutedText}"
+                                                                                           TextWrapping="Wrap" />
+                                                                                <TextBlock Text="{Binding SuggestedFix}"
+                                                                                           Style="{StaticResource MutedText}"
+                                                                                           TextWrapping="Wrap"
+                                                                                           FontStyle="Italic" Margin="0,4,0,0"
+                                                                                           Visibility="{Binding SuggestedFix, Converter={StaticResource StringToVisibility}}" />
+                                                                            </StackPanel>
+                                                                        </Expander>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </ScrollViewer>
 
                                                 <Border Grid.Row="1" Background="{StaticResource LogBackgroundBrush}" CornerRadius="4" Padding="8">
                                                     <ListBox ItemsSource="{Binding LogLines}"
@@ -891,8 +1280,6 @@
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto" />
                                                     <RowDefinition Height="*" />
-                                                    <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="Auto" />
                                                 </Grid.RowDefinitions>
 
                                                 <Border Grid.Row="0" Background="{StaticResource SurfaceAltBrush}"
@@ -902,7 +1289,7 @@
                                                                    FontWeight="SemiBold" TextWrapping="Wrap" />
                                                         <TextBlock Style="{StaticResource MutedText}" FontSize="11"
                                                                    Margin="0,2,0,0" TextWrapping="Wrap"
-                                                                   Text="Roster is built from the live Abiotic Factor server log and remembered per world across restarts." />
+                                                                   Text="Roster is built from the live Abiotic Factor server log and remembered per world. Double-click a player to open their detail tab." />
                                                     </StackPanel>
                                                 </Border>
 
@@ -945,6 +1332,11 @@
                                                                  SelectedItem="{Binding SelectedRosterPlayer, Mode=TwoWay}"
                                                                  Background="Transparent" BorderThickness="0"
                                                                  HorizontalContentAlignment="Stretch">
+                                                            <ListBox.InputBindings>
+                                                                <!-- Double-click a player → open their detail tab. -->
+                                                                <MouseBinding Gesture="LeftDoubleClick"
+                                                                              Command="{Binding DataContext.ShowPlayerDetailCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                            </ListBox.InputBindings>
                                                             <ListBox.ItemTemplate>
                                                                 <DataTemplate>
                                                                     <Border Background="{StaticResource SurfaceBrush}"
@@ -1011,28 +1403,45 @@
                                                         </ListBox>
                                                     </DockPanel>
                                                 </Border>
+                                            </Grid>
+                                        </TabItem>
 
-                                                <Border Grid.Row="2" Background="{StaticResource SurfaceAltBrush}"
-                                                        CornerRadius="4" Padding="10,8" Margin="0,0,0,10">
+                                        <!-- Player Detail: dynamically loaded when the admin
+                                             double-clicks a roster row. Shows that player's
+                                             lifecycle activity and the chat conversation. -->
+                                        <TabItem Header="Player Detail">
+                                            <Grid Margin="0,10,0,0">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="*" />
+                                                </Grid.RowDefinitions>
+
+                                                <Border Grid.Row="0" Background="{StaticResource SurfaceAltBrush}"
+                                                        CornerRadius="4" Padding="12,10" Margin="0,0,0,10">
+                                                    <TextBlock Text="{Binding PlayerDetailHeader}"
+                                                               FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                </Border>
+
+                                                <Border Grid.Row="1" Background="{StaticResource SurfaceAltBrush}"
+                                                        CornerRadius="4" Padding="10,8" Margin="0,0,0,10"
+                                                        Visibility="{Binding HasPlayerDetail, Converter={StaticResource BoolToVisibility}}">
                                                     <DockPanel>
-                                                        <TextBlock DockPanel.Dock="Top" Text="Recent Activity"
+                                                        <TextBlock DockPanel.Dock="Top" Text="Activity"
                                                                    FontWeight="SemiBold" Margin="0,0,0,6" />
-                                                        <ListBox ItemsSource="{Binding RosterActivity}"
-                                                                 MaxHeight="120" Background="Transparent"
+                                                        <ListBox ItemsSource="{Binding SelectedPlayerActivity}"
+                                                                 MaxHeight="150" Background="Transparent"
                                                                  BorderThickness="0" HorizontalContentAlignment="Stretch">
                                                             <ListBox.ItemTemplate>
                                                                 <DataTemplate>
                                                                     <DockPanel Margin="0,0,0,2">
                                                                         <TextBlock DockPanel.Dock="Left"
-                                                                                   Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
+                                                                                   Text="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}"
                                                                                    FontFamily="Consolas"
                                                                                    Style="{StaticResource MutedText}"
                                                                                    Margin="0,0,10,0" />
-                                                                        <TextBlock TextTrimming="CharacterEllipsis">
-                                                                            <Run Text="{Binding DisplayName, Mode=OneWay}" FontWeight="SemiBold" />
-                                                                            <Run Text=" " />
-                                                                            <Run Text="{Binding KindText, Mode=OneWay}" />
-                                                                        </TextBlock>
+                                                                        <TextBlock Text="{Binding KindText}"
+                                                                                   TextTrimming="CharacterEllipsis" />
                                                                     </DockPanel>
                                                                 </DataTemplate>
                                                             </ListBox.ItemTemplate>
@@ -1040,39 +1449,42 @@
                                                     </DockPanel>
                                                 </Border>
 
-                                                <Border Grid.Row="3" Background="{StaticResource SurfaceAltBrush}"
-                                                        CornerRadius="4" Padding="10,8">
+                                                <Border Grid.Row="2" Background="{StaticResource SurfaceAltBrush}"
+                                                        CornerRadius="4" Padding="10,8"
+                                                        Visibility="{Binding HasPlayerDetail, Converter={StaticResource BoolToVisibility}}">
                                                     <DockPanel>
-                                                        <TextBlock DockPanel.Dock="Top" Text="Play Sessions"
+                                                        <TextBlock DockPanel.Dock="Top" Text="Chat"
                                                                    FontWeight="SemiBold" Margin="0,0,0,2" />
                                                         <TextBlock DockPanel.Dock="Top" Style="{StaticResource MutedText}"
                                                                    FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"
-                                                                   Text="Join/leave and play length parsed from the live log. Achievements are not emitted by the dedicated server, so they cannot be shown here." />
-                                                        <ListBox ItemsSource="{Binding PlayerSessions}"
-                                                                 MaxHeight="150"
+                                                                   Text="The full conversation for context — this player's own messages are highlighted." />
+                                                        <ListBox ItemsSource="{Binding SelectedPlayerChat}"
                                                                  Background="Transparent" BorderThickness="0"
-                                                                 HorizontalContentAlignment="Stretch">
+                                                                 HorizontalContentAlignment="Stretch"
+                                                                 ScrollViewer.VerticalScrollBarVisibility="Auto">
                                                             <ListBox.ItemTemplate>
                                                                 <DataTemplate>
-                                                                    <Border Background="{StaticResource SurfaceBrush}"
-                                                                            CornerRadius="4" Padding="10,6" Margin="0,0,0,4">
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="*" />
-                                                                                <ColumnDefinition Width="150" />
-                                                                                <ColumnDefinition Width="90" />
-                                                                                <ColumnDefinition Width="70" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock Grid.Column="0" Text="{Binding PlayerName}"
-                                                                                       FontWeight="SemiBold" />
-                                                                            <TextBlock Grid.Column="1" FontFamily="Consolas"
-                                                                                       Style="{StaticResource MutedText}"
-                                                                                       Text="{Binding Start, StringFormat='{}{0:yyyy-MM-dd HH:mm}'}" />
-                                                                            <TextBlock Grid.Column="2" Text="{Binding DurationText}" />
-                                                                            <TextBlock Grid.Column="3" Text="{Binding StatusText}"
-                                                                                       Style="{StaticResource MutedText}" />
-                                                                        </Grid>
-                                                                    </Border>
+                                                                    <DockPanel Margin="0,0,0,3">
+                                                                        <TextBlock DockPanel.Dock="Left"
+                                                                                   Text="{Binding TimeText}"
+                                                                                   FontFamily="Consolas"
+                                                                                   Style="{StaticResource MutedText}"
+                                                                                   Margin="0,0,10,0" />
+                                                                        <TextBlock TextWrapping="Wrap">
+                                                                            <Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
+                                                                            <Run Text=": " />
+                                                                            <Run Text="{Binding Message, Mode=OneWay}" />
+                                                                            <TextBlock.Style>
+                                                                                <Style TargetType="{x:Type TextBlock}">
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsFromPlayer}" Value="True">
+                                                                                            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </TextBlock.Style>
+                                                                        </TextBlock>
+                                                                    </DockPanel>
                                                                 </DataTemplate>
                                                             </ListBox.ItemTemplate>
                                                         </ListBox>
@@ -1084,26 +1496,49 @@
                                 </Grid>
                             </TabItem>
 
-                            <!-- Advanced is the loss-less catch-all for uncategorised/unknown
-                                 sandbox keys (discover-dont-hardcode). Hide when empty rather
-                                 than removing so a future game update that adds unknown keys
-                                 still has a home and nothing is silently dropped. -->
-                            <TabItem Header="Advanced"
-                                     Visibility="{Binding Sandbox.HasAdvancedSettings, Converter={StaticResource BoolToVisibility}}">
-                                <DockPanel>
-                                    <ContentControl DockPanel.Dock="Top"
-                                                    ContentTemplate="{StaticResource SandboxToolbar}"
-                                                    Content="{Binding}" />
-                                    <local:SandboxCategoryPanel DataContext="{Binding Sandbox}"
-                                        ItemsSource="{Binding AdvancedSettings}"
-                                        EmptyHint="Unknown and uncategorised settings appear here. Anything Facility Overseer does not recognise is preserved exactly and editable as raw text." />
-                                </DockPanel>
-                            </TabItem>
+                            <!-- World / Player / Enemy / Advanced are now dynamic sub-tabs
+                                 under the "Settings" tab above (one per discovered category).
+                                 The uncategorised/unknown-key catch-all appears there as the
+                                 "Advanced" category whenever it is non-empty. -->
                             </TabControl>
                         </Grid>
                     </Border>
                 </DataTemplate>
             </TabControl.ContentTemplate>
         </TabControl>
+
+        <!-- UI Tweaks A6 / F6: first-run clean slate. No world tabs until a world
+             exists. The shared server is prepared first (Phase 1), then worlds. -->
+        <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" CornerRadius="6"
+                Visibility="{Binding HasWorlds, Converter={StaticResource InvBoolToVisibility}}">
+            <Grid HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="480">
+                <!-- Phase 1: prepare the shared dedicated server first. -->
+                <StackPanel Visibility="{Binding IsServerPrepared, Converter={StaticResource InvBoolToVisibility}}">
+                    <TextBlock Text="First, prepare the server" FontSize="22" FontWeight="Bold"
+                               HorizontalAlignment="Center"
+                               Foreground="{StaticResource TextBrush}" />
+                    <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" TextAlignment="Center"
+                               Style="{StaticResource MutedText}"
+                               Text="Facility Overseer needs the Abiotic Factor dedicated server before you can create worlds. This downloads it (and SteamCMD) automatically — no Steam login required. One server install is shared by every world." />
+                    <Button Content="Prepare / Update Server" Style="{StaticResource AccentButton}"
+                            HorizontalAlignment="Center" Margin="0,20,0,0" Padding="22,9"
+                            ToolTip="Download and install the Abiotic Factor dedicated server with SteamCMD."
+                            Command="{Binding InstallOrUpdateServerCommand}" />
+                </StackPanel>
+                <!-- Phase 2: server ready — create the first world. -->
+                <StackPanel Visibility="{Binding IsServerPrepared, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="Create your first world" FontSize="22" FontWeight="Bold"
+                               HorizontalAlignment="Center"
+                               Foreground="{StaticResource TextBrush}" />
+                    <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" TextAlignment="Center"
+                               Style="{StaticResource MutedText}"
+                               Text="The dedicated server is ready. Create a world to configure and launch it. Worlds are stored separately from the server, so they survive a server repair or reinstall." />
+                    <Button Content="Create World" Style="{StaticResource AccentButton}"
+                            HorizontalAlignment="Center" Margin="0,20,0,0" Padding="22,9"
+                            ToolTip="Create a new managed world."
+                            Command="{Binding CreateWorldCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

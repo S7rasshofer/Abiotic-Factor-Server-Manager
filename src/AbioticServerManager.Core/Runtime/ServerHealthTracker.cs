@@ -116,6 +116,36 @@ public static class ServerHealthSignals
 
         return null;
     }
+
+    /// <summary>
+    /// §4.2: a stable recovery-flow trigger tag when the blocking signal has a
+    /// guided recovery flow (see <c>RecoveryFlows</c>), else null. Parallels
+    /// <see cref="BlockingReason"/> — only corruption and port-bind failures
+    /// have a guided flow; other blocking reasons return null.
+    /// </summary>
+    public static string? BlockingTag(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        bool Has(string a) => text.Contains(a, StringComparison.OrdinalIgnoreCase);
+
+        if ((Has("corrupt") || Has("corruption")) && Has("world"))
+        {
+            return "world.corrupt";
+        }
+
+        if (Has("address already in use") ||
+            Has("failed to bind") || Has("bind failed") ||
+            (Has("port") && Has("in use")))
+        {
+            return "port.bind_fail";
+        }
+
+        return null;
+    }
 }
 
 public sealed class ServerHealthTracker
@@ -124,10 +154,18 @@ public sealed class ServerHealthTracker
 
     public string Reason { get; private set; } = "Server is stopped.";
 
+    /// <summary>
+    /// §4.2: recovery-flow trigger tag set while <see cref="Health"/> is
+    /// <see cref="ServerHealth.Blocked"/> by a signal that has a guided flow
+    /// (<c>world.corrupt</c> / <c>port.bind_fail</c>), else null.
+    /// </summary>
+    public string? BlockingTag { get; private set; }
+
     public void OnProcessStarted()
     {
         Health = ServerHealth.Starting;
         Reason = "Server process started; waiting for it to become ready.";
+        BlockingTag = null;
     }
 
     public void OnProcessExited(bool unexpected)
@@ -167,6 +205,7 @@ public sealed class ServerHealthTracker
 
             Health = ServerHealth.Blocked;
             Reason = reason;
+            BlockingTag = ServerHealthSignals.BlockingTag(line.Text);
             return true;
         }
 
@@ -179,6 +218,7 @@ public sealed class ServerHealthTracker
 
             Health = ServerHealth.Online;
             Reason = "Server is online and ready for players.";
+            BlockingTag = null;
             return true;
         }
 

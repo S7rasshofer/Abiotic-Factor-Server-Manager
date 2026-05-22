@@ -38,6 +38,13 @@ public static class PlayerRosterParser
         @"CHAT LOG:\s*(?<name>.+?)\s+has entered the facility",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
+    // CHAT LOG:  S7razzy: gg everyone
+    // The colon after the name distinguishes a real chat message from the
+    // "<name> has entered/left the facility" system lines (which have no colon).
+    private static readonly Regex ChatMessage = new(
+        @"CHAT LOG:\s*(?<name>[^:]+?)\s*:\s*(?<msg>\S.*?)\s*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
     // EOS_SessionModification_AddAttribute() named (PlayerCount) with value (1)
     private static readonly Regex PlayerCount = new(
         @"\(PlayerCount\)\s*with value\s*\((?<n>\d+)\)",
@@ -97,6 +104,18 @@ public static class PlayerRosterParser
             return new PlayerRosterEvent(
                 ts, PlayerRosterEventKind.EnteredFacility,
                 CleanName(entered.Groups["name"].Value), null, null, null, null, null, text);
+        }
+
+        // Checked AFTER EnteredFacility so the "has entered" system line wins.
+        var chat = ChatMessage.Match(text);
+        if (chat.Success)
+        {
+            return new PlayerRosterEvent(
+                ts, PlayerRosterEventKind.Chat,
+                CleanName(chat.Groups["name"].Value), null, null, null, null, null, text)
+            {
+                Message = chat.Groups["msg"].Value.Trim(),
+            };
         }
 
         var count = PlayerCount.Match(text);

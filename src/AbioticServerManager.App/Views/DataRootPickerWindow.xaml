@@ -21,37 +21,39 @@
                    FontSize="18" FontWeight="Bold" Margin="0,0,0,4" />
         <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="0,0,0,16"
                    Foreground="#A8B5C1"
-                   Text="Facility Overseer stores world profiles, sandbox settings, admin/ban lists, backups, and SteamCMD here. The choice is saved and honored every launch — pick once, never reappears." />
+                   Text="Where Facility Overseer keeps everything — worlds, settings, backups, and the game server. Hover a choice to see its full path." />
 
         <StackPanel Grid.Row="2">
-            <RadioButton x:Name="PortableRadio" GroupName="DataRoot"
-                         Content="Portable — next to the application" />
-            <TextBlock Margin="22,0,0,10" Foreground="#A8B5C1" FontSize="11"
-                       TextWrapping="Wrap"
-                       Text="{Binding PortablePath, ElementName=Self}" />
+            <!-- Option 1: data folder beside the application. Full path on hover. -->
+            <RadioButton x:Name="PortableRadio" GroupName="DataRoot" Margin="0,0,0,12"
+                         Content="In the Facility Overseer folder"
+                         ToolTip="{Binding PortablePath}" />
 
-            <RadioButton x:Name="AppDataRadio" GroupName="DataRoot" IsChecked="True"
-                         Content="User profile (recommended for managed installs)" />
-            <TextBlock Margin="22,0,0,10" Foreground="#A8B5C1" FontSize="11"
-                       TextWrapping="Wrap"
-                       Text="{Binding AppDataPath, ElementName=Self}" />
-
+            <!-- Option 2: a custom folder. The path box stays hidden until chosen. -->
             <RadioButton x:Name="CustomRadio" GroupName="DataRoot"
-                         Content="Custom folder" />
-            <DockPanel Margin="22,2,0,4" LastChildFill="True"
-                       IsEnabled="{Binding IsChecked, ElementName=CustomRadio}">
+                         Content="Custom folder"
+                         ToolTip="Pick any folder — for example one on a flash drive." />
+            <DockPanel Margin="22,6,0,0" LastChildFill="True">
+                <DockPanel.Style>
+                    <Style TargetType="DockPanel">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsChecked, ElementName=CustomRadio}"
+                                         Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DockPanel.Style>
                 <Button DockPanel.Dock="Right" Content="Browse…" Margin="6,0,0,0"
                         Click="OnBrowseClicked" />
                 <TextBox x:Name="CustomPathBox" />
             </DockPanel>
-            <TextBlock Margin="22,0,0,10" Foreground="#A8B5C1" FontSize="11"
-                       TextWrapping="Wrap"
-                       Text="Useful when you want the data on a different drive (e.g., D:\FacilityOverseerData)." />
         </StackPanel>
 
-        <TextBlock Grid.Row="3" Margin="0,8,0,12" TextWrapping="Wrap"
+        <TextBlock Grid.Row="3" Margin="0,18,0,12" TextWrapping="Wrap"
                    Foreground="#E6B84B" FontSize="11"
-                   Text="Note: large rewrite-heavy files (SteamCMD, the dedicated server install) are kept off cloud-sync paths automatically. You will never see this dialog again unless you delete the saved choice." />
+                   Text="Tip: pick a custom folder — even one on a flash drive — to keep the whole program portable. You can open these folders later from buttons inside the app, and this dialog won't appear again unless you reset the saved choice." />
 
         <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Cancel" Padding="14,5" Margin="0,0,8,0" Click="OnCancelClicked" />

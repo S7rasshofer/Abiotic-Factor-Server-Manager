@@ -134,8 +134,6 @@ public sealed record NetworkSetupStatus
     public IReadOnlyList<DiagnosticMessage> PortValidationMessages { get; init; } = [];
     public NetworkEnvironment? Environment { get; init; }
     public IReadOnlyList<PortBindingStatus> PortBindings { get; init; } = [];
-    public string? LastRouterChecklistIpv4 { get; init; }
-    public DateTimeOffset? LastRouterChecklistCopiedAtUtc { get; init; }
     public DateTimeOffset? LastFirewallRepairAtUtc { get; init; }
 
     /// <summary>Set when more than one plausible LAN IPv4 was detected.</summary>

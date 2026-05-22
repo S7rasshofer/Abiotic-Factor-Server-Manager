@@ -15,18 +15,21 @@ public sealed class AbioticServerLogTail : IDisposable
 {
     private readonly string _instanceId;
     private readonly string _logPath;
-    private readonly Action<ServerLogLine> _onLine;
+    private readonly Action<IReadOnlyList<ServerLogLine>> _onLines;
     private readonly ILogger _logger;
     private readonly CancellationTokenSource _cts = new();
     private Task? _loop;
     private long _position;
 
     private AbioticServerLogTail(
-        string instanceId, string logPath, Action<ServerLogLine> onLine, ILogger logger)
+        string instanceId,
+        string logPath,
+        Action<IReadOnlyList<ServerLogLine>> onLines,
+        ILogger logger)
     {
         _instanceId = instanceId;
         _logPath = logPath;
-        _onLine = onLine;
+        _onLines = onLines;
         _logger = logger;
     }
 
@@ -36,14 +39,20 @@ public sealed class AbioticServerLogTail : IDisposable
             : Path.Combine(
                 installPath, "AbioticFactor", "Saved", "Logs", "AbioticFactor.log");
 
+    /// <summary>
+    /// Starts following the log. New lines are delivered as a BATCH per read
+    /// tick (not line-by-line) so the consumer can refresh the UI once per
+    /// tick instead of once per line — a join burst of LogNet lines would
+    /// otherwise saturate the UI thread.
+    /// </summary>
     public static AbioticServerLogTail Start(
         string instanceId,
         string installPath,
-        Action<ServerLogLine> onLine,
+        Action<IReadOnlyList<ServerLogLine>> onLines,
         ILogger logger)
     {
         var tail = new AbioticServerLogTail(
-            instanceId, ResolveLogPath(installPath), onLine, logger);
+            instanceId, ResolveLogPath(installPath), onLines, logger);
         tail._loop = Task.Run(() => tail.RunAsync(tail._cts.Token));
         return tail;
     }
@@ -115,6 +124,7 @@ public sealed class AbioticServerLogTail : IDisposable
         carry.Append(chunk);
         var text = carry.ToString();
         var start = 0;
+        var batch = new List<ServerLogLine>();
 
         for (var i = 0; i < text.Length; i++)
         {
@@ -130,21 +140,28 @@ public sealed class AbioticServerLogTail : IDisposable
                 continue;
             }
 
-            try
-            {
-                _onLine(new ServerLogLine(
-                    _instanceId, DateTimeOffset.Now, line, IsError: false));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Roster/health tail handler threw");
-            }
+            batch.Add(new ServerLogLine(_instanceId, DateTimeOffset.Now, line, IsError: false));
         }
 
         carry.Clear();
         if (start < text.Length)
         {
             carry.Append(text[start..]); // keep the partial trailing line
+        }
+
+        if (batch.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            // One dispatch per read tick — the consumer refreshes the UI once.
+            _onLines(batch);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Roster/health tail handler threw");
         }
     }
 

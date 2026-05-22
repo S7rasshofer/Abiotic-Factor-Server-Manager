@@ -117,9 +117,24 @@ public class FirewallScriptBuilderTests
     {
         var script = Create(World(), exe: null);
 
-        Assert.Contains("Server executable not found", script);
-        // Port rules are still emitted.
+        // Both UDP port rules must still be emitted — a missing executable must
+        // never block them (the "no firewall rules appear" bug).
         Assert.Contains("Facility Overseer - Cascade - Abiotic Factor Game UDP 7777", script);
+        Assert.Contains("Facility Overseer - Cascade - Abiotic Factor Query UDP 27015", script);
+
+        // The program-rule call must be guarded so a null path skips cleanly
+        // instead of throwing and failing the whole repair.
+        Assert.Contains("if ($programPath -and -not [string]::IsNullOrWhiteSpace", script);
+        Assert.Contains("program rule skipped", script);
+    }
+
+    [Fact]
+    public void Create_script_with_exe_present_invokes_the_program_rule()
+    {
+        var script = Create(World()); // default exe path
+
+        Assert.Contains("Repair-ProgramRule", script);
+        Assert.Contains("Facility Overseer - Cascade - Abiotic Factor Server executable", script);
     }
 
     [Fact]

@@ -62,15 +62,11 @@ public sealed class ServerInstance
 public sealed class ServerInstanceNetworkState
 {
     public string? LastDetectedLanIpv4 { get; set; }
-    public string? LastRouterChecklistIpv4 { get; set; }
-    public DateTimeOffset? LastRouterChecklistCopiedAtUtc { get; set; }
     public DateTimeOffset? LastFirewallRepairAtUtc { get; set; }
 
     public ServerInstanceNetworkState Clone() => new()
     {
         LastDetectedLanIpv4 = LastDetectedLanIpv4,
-        LastRouterChecklistIpv4 = LastRouterChecklistIpv4,
-        LastRouterChecklistCopiedAtUtc = LastRouterChecklistCopiedAtUtc,
         LastFirewallRepairAtUtc = LastFirewallRepairAtUtc,
     };
 }

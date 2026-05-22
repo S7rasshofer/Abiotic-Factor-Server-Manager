@@ -7,13 +7,11 @@ namespace AbioticServerManager.App.Views;
 /// <summary>
 /// First-launch dialog that lets the user choose where Facility Overseer keeps
 /// its data folder. The choice is persisted via <c>DataRootChoiceFile</c> and
-/// honored on every subsequent launch — no folder ever appears beside the exe
-/// when the user picked AppData (or a custom path).
+/// honored on every subsequent launch.
 /// </summary>
 public partial class DataRootPickerWindow : Window
 {
     private const string PortableLeaf = "FacilityOverseerData";
-    private const string ProductFolder = "FacilityOverseer";
 
     public DataRootPickerWindow()
     {
@@ -21,23 +19,21 @@ public partial class DataRootPickerWindow : Window
         DataContext = this;
 
         PortablePath = Path.Combine(AppContext.BaseDirectory, PortableLeaf);
-        AppDataPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            ProductFolder);
 
-        // Default to Portable when the exe folder is writable, else AppData.
+        // Default to the application folder when it is writable; otherwise start
+        // the user on the Custom option so they are not sitting on a broken default.
         if (CanWriteTo(AppContext.BaseDirectory))
         {
             PortableRadio.IsChecked = true;
         }
         else
         {
-            AppDataRadio.IsChecked = true;
+            CustomRadio.IsChecked = true;
         }
     }
 
+    /// <summary>The data folder beside the application (shown on the first option).</summary>
     public string PortablePath { get; }
-    public string AppDataPath { get; }
 
     /// <summary>The path the user accepted, or null if they cancelled.</summary>
     public string? ChosenPath { get; private set; }
@@ -68,19 +64,9 @@ public partial class DataRootPickerWindow : Window
 
     private void OnContinueClicked(object sender, RoutedEventArgs e)
     {
-        string candidate;
-        if (PortableRadio.IsChecked == true)
-        {
-            candidate = PortablePath;
-        }
-        else if (AppDataRadio.IsChecked == true)
-        {
-            candidate = AppDataPath;
-        }
-        else
-        {
-            candidate = (CustomPathBox.Text ?? "").Trim();
-        }
+        var candidate = PortableRadio.IsChecked == true
+            ? PortablePath
+            : (CustomPathBox.Text ?? "").Trim();
 
         if (string.IsNullOrWhiteSpace(candidate))
         {

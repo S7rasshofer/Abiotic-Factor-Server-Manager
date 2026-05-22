@@ -2,8 +2,10 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using AbioticServerManager.Core.Backup;
 using AbioticServerManager.Core.Diagnostics;
 using AbioticServerManager.Core.Runtime;
+using AbioticServerManager.Core.Worlds;
 
 namespace AbioticServerManager.App.Converters;
 
@@ -153,6 +155,74 @@ public sealed class PositiveIntToVisibilityConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
         value is int n && n > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>§4.5: maps a world-integrity finding severity to its dot brush.</summary>
+public sealed class IntegritySeverityToBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is WorldIntegritySeverity s
+            ? s switch
+            {
+                WorldIntegritySeverity.Blocker => new SolidColorBrush(Color.FromRgb(0xFF, 0x5F, 0x57)),
+                WorldIntegritySeverity.Warning => new SolidColorBrush(Color.FromRgb(0xE6, 0xB8, 0x4B)),
+                _ => new SolidColorBrush(Color.FromRgb(0xA8, 0xB5, 0xC1)),
+            }
+            : Brushes.Gray;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// §4.4: evaluates a backup's confidence (Full / Partial / Limited + age +
+/// stale flag) at bind time. The resulting <see cref="BackupConfidence"/> is
+/// rendered by an inline badge template on the Backups tab.
+/// </summary>
+public sealed class BackupEntryToConfidenceConverter : IValueConverter
+{
+    public object? Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is BackupEntry entry
+            ? BackupConfidenceCalculator.Evaluate(entry, DateTimeOffset.Now)
+            : null;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>§4.3: maps a recommended-action priority to its dot brush.</summary>
+public sealed class RecommendedPriorityToBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is RecommendedActionPriority p
+            ? p switch
+            {
+                RecommendedActionPriority.High => new SolidColorBrush(Color.FromRgb(0xE6, 0xB8, 0x4B)),
+                RecommendedActionPriority.Medium => new SolidColorBrush(Color.FromRgb(0x6B, 0xB6, 0xD6)),
+                _ => new SolidColorBrush(Color.FromRgb(0xA8, 0xB5, 0xC1)),
+            }
+            : Brushes.Gray;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>§4.6: maps a startup-phase status to its timeline dot brush.</summary>
+public sealed class StartupPhaseStatusToBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is StartupPhaseStatus s
+            ? s switch
+            {
+                StartupPhaseStatus.Done => new SolidColorBrush(Color.FromRgb(0x79, 0xD6, 0x6B)),
+                StartupPhaseStatus.InProgress => new SolidColorBrush(Color.FromRgb(0xE6, 0xB8, 0x4B)),
+                StartupPhaseStatus.Failed => new SolidColorBrush(Color.FromRgb(0xFF, 0x5F, 0x57)),
+                _ => new SolidColorBrush(Color.FromRgb(0x3A, 0x46, 0x52)),
+            }
+            : Brushes.Gray;
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
         throw new NotSupportedException();

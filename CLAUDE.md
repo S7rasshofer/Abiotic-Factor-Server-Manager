@@ -8,6 +8,9 @@
 - **Master plan:** [`docs/MASTER_PLAN.md`](docs/MASTER_PLAN.md) — single
   consolidated plan with the overview table, three phases, and per‑task
   checkboxes. Flip checkboxes here when work lands.
+- **UI tweaks (active):** [`docs/UI_TWEAKS_PLAN.md`](docs/UI_TWEAKS_PLAN.md)
+  — focused UI tweaks & cleanup pass; current near-term priority, runs
+  ahead of Phase 3.
 - **Architecture reference:** [`docs/CURRENT_BUILD.md`](docs/CURRENT_BUILD.md)
   — what exists today, verified against source.
 - **History (superseded, do not edit):**

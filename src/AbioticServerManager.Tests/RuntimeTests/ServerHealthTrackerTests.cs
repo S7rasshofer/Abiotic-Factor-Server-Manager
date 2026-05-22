@@ -83,4 +83,30 @@ public class ServerHealthTrackerTests
         Assert.Null(ServerHealthSignals.BlockingReason("LogMemory: tick complete"));
         Assert.False(ServerHealthSignals.IsReadiness("LogMemory: tick complete"));
     }
+
+    [Theory]
+    [InlineData("LogAbiotic: World save is corrupt and cannot be loaded", "world.corrupt")]
+    [InlineData("Failed to bind: address already in use", "port.bind_fail")]
+    public void BlockingTag_maps_recoverable_signals(string text, string expected) =>
+        Assert.Equal(expected, ServerHealthSignals.BlockingTag(text));
+
+    [Theory]
+    [InlineData("Could not find sandbox override path")]
+    [InlineData("EOS error: session creation failed")]
+    [InlineData("Fatal error encountered")]
+    [InlineData("LogMemory: tick complete")]
+    public void BlockingTag_is_null_when_there_is_no_guided_flow(string text) =>
+        Assert.Null(ServerHealthSignals.BlockingTag(text));
+
+    [Fact]
+    public void Tracker_exposes_blocking_tag_while_blocked()
+    {
+        var t = new ServerHealthTracker();
+        t.OnProcessStarted();
+        Assert.Null(t.BlockingTag);
+
+        t.Apply(Log("LogAbiotic: the world save is corrupt"));
+        Assert.Equal(ServerHealth.Blocked, t.Health);
+        Assert.Equal("world.corrupt", t.BlockingTag);
+    }
 }
