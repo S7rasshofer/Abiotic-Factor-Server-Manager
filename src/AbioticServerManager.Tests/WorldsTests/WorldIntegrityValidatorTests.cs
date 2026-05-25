@@ -51,7 +51,7 @@ public class WorldIntegrityValidatorTests
     public void Missing_sandbox_ini_is_only_a_warning_so_first_run_can_proceed()
     {
         // On a fresh world, the sandbox INI is generated when the user saves
-        // settings — missing on first launch must not block Start.
+        // settings - missing on first launch must not block Start.
         var inputs = Healthy() with { SandboxIniExists = false };
         var report = WorldIntegrityValidator.Validate(inputs);
 
@@ -81,6 +81,32 @@ public class WorldIntegrityValidatorTests
         Assert.True(report.IsLaunchable);
         Assert.Contains(report.Findings, f =>
             f.Id == "ADMIN_INI_MISSING" && f.Severity == WorldIntegritySeverity.Info);
+    }
+
+    /// <summary>
+    /// Sec 4.5: findings with a clear one-click fix expose the command hint
+    /// so the popup can render a "Save Sandbox" / "Prepare server" button.
+    /// </summary>
+    [Fact]
+    public void Missing_sandbox_finding_exposes_save_sandbox_command()
+    {
+        var inputs = Healthy() with { SandboxIniExists = false };
+        var report = WorldIntegrityValidator.Validate(inputs);
+
+        var finding = report.Findings.Single(f => f.Id == "SANDBOX_INI_MISSING");
+        Assert.Equal("SaveSandboxCommand", finding.CommandHint);
+        Assert.Equal("Save Sandbox", finding.ActionLabel);
+    }
+
+    [Fact]
+    public void Missing_executable_finding_exposes_install_command()
+    {
+        var inputs = Healthy() with { ServerExecutableFound = false };
+        var report = WorldIntegrityValidator.Validate(inputs);
+
+        var finding = report.Findings.Single(f => f.Id == "EXE_MISSING");
+        Assert.Equal("InstallOrUpdateServerCommand", finding.CommandHint);
+        Assert.Contains("Prepare", finding.ActionLabel);
     }
 
     [Fact]

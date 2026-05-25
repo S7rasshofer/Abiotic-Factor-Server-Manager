@@ -11,49 +11,51 @@
         <conv:NullToVisibilityConverter x:Key="NullToVis" />
         <conv:StringToVisibilityConverter x:Key="StrToVis" />
 
+        <!-- Click anywhere on a row (other than its editor control) to open the
+             setting's details in the side panel - there is no per-row "?" button. -->
         <Style x:Key="SettingRow" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}" />
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="Padding" Value="10,8" />
             <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="Cursor" Value="Hand" />
         </Style>
 
         <!-- Each template's DataContext is a SettingViewModel -->
         <DataTemplate x:Key="ToggleTpl">
             <Border Style="{StaticResource SettingRow}">
+                <Border.InputBindings>
+                    <MouseBinding Gesture="LeftClick"
+                                  Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                  CommandParameter="{Binding}" />
+                </Border.InputBindings>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding Key}" Style="{StaticResource MutedText}" FontSize="11" />
-                    </StackPanel>
+                    <TextBlock Grid.Column="0" Text="{Binding DisplayName}" FontWeight="SemiBold" />
                     <ToggleButton Grid.Column="1" Style="{StaticResource ToggleSwitch}"
                                   IsChecked="{Binding BoolValue, Mode=TwoWay}"
                                   VerticalAlignment="Center" Margin="12,0" />
-                    <Button Grid.Column="2" Content="?" Padding="8,2" Margin="4,0,0,0"
-                            Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                            CommandParameter="{Binding}" />
                 </Grid>
             </Border>
         </DataTemplate>
 
         <DataTemplate x:Key="SliderTpl">
             <Border Style="{StaticResource SettingRow}">
+                <Border.InputBindings>
+                    <MouseBinding Gesture="LeftClick"
+                                  Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                  CommandParameter="{Binding}" />
+                </Border.InputBindings>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="220" />
                         <ColumnDefinition Width="64" />
-                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding Key}" Style="{StaticResource MutedText}" FontSize="11" />
-                    </StackPanel>
+                    <TextBlock Grid.Column="0" Text="{Binding DisplayName}" FontWeight="SemiBold" />
                     <!-- Snap to the setting's metadata step so the track is not
                          hyper-sensitive and whole-number settings stay whole. -->
                     <Slider Grid.Column="1" VerticalAlignment="Center" Margin="12,0"
@@ -65,75 +67,66 @@
                             LargeChange="{Binding LargeStep}" />
                     <TextBox Grid.Column="2" Text="{Binding StringValue, UpdateSourceTrigger=LostFocus}"
                              VerticalAlignment="Center" />
-                    <Button Grid.Column="3" Content="?" Padding="8,2" Margin="4,0,0,0"
-                            Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                            CommandParameter="{Binding}" />
                 </Grid>
             </Border>
         </DataTemplate>
 
         <DataTemplate x:Key="NumberTpl">
             <Border Style="{StaticResource SettingRow}">
+                <Border.InputBindings>
+                    <MouseBinding Gesture="LeftClick"
+                                  Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                  CommandParameter="{Binding}" />
+                </Border.InputBindings>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="160" />
-                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding Key}" Style="{StaticResource MutedText}" FontSize="11" />
-                    </StackPanel>
+                    <TextBlock Grid.Column="0" Text="{Binding DisplayName}" FontWeight="SemiBold" />
                     <TextBox Grid.Column="1" Margin="12,0"
                              Text="{Binding StringValue, UpdateSourceTrigger=LostFocus}" />
-                    <Button Grid.Column="2" Content="?" Padding="8,2" Margin="4,0,0,0"
-                            Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                            CommandParameter="{Binding}" />
                 </Grid>
             </Border>
         </DataTemplate>
 
         <DataTemplate x:Key="DropdownTpl">
             <Border Style="{StaticResource SettingRow}">
+                <Border.InputBindings>
+                    <MouseBinding Gesture="LeftClick"
+                                  Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                  CommandParameter="{Binding}" />
+                </Border.InputBindings>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="200" />
-                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding Key}" Style="{StaticResource MutedText}" FontSize="11" />
-                    </StackPanel>
+                    <TextBlock Grid.Column="0" Text="{Binding DisplayName}" FontWeight="SemiBold" />
                     <ComboBox Grid.Column="1" Margin="12,0"
                               ItemsSource="{Binding OptionItems}"
                               DisplayMemberPath="Label"
                               SelectedValuePath="Value"
                               SelectedValue="{Binding SelectedOption, Mode=TwoWay}" />
-                    <Button Grid.Column="2" Content="?" Padding="8,2" Margin="4,0,0,0"
-                            Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                            CommandParameter="{Binding}" />
                 </Grid>
             </Border>
         </DataTemplate>
 
         <DataTemplate x:Key="TextTpl">
             <Border Style="{StaticResource SettingRow}">
+                <Border.InputBindings>
+                    <MouseBinding Gesture="LeftClick"
+                                  Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                  CommandParameter="{Binding}" />
+                </Border.InputBindings>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="240" />
-                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding Key}" Style="{StaticResource MutedText}" FontSize="11" />
-                    </StackPanel>
+                    <TextBlock Grid.Column="0" Text="{Binding DisplayName}" FontWeight="SemiBold" />
                     <TextBox Grid.Column="1" Margin="12,0"
                              Text="{Binding StringValue, UpdateSourceTrigger=LostFocus}" />
-                    <Button Grid.Column="2" Content="?" Padding="8,2" Margin="4,0,0,0"
-                            Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                            CommandParameter="{Binding}" />
                 </Grid>
             </Border>
         </DataTemplate>
@@ -156,11 +149,17 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Button Grid.Row="0" Grid.Column="0" Content="Reset Tab to Defaults"
-                HorizontalAlignment="Left" Margin="0,0,0,10"
-                Visibility="{Binding IsLoaded, Converter={StaticResource BoolToVis}}"
-                Command="{Binding ResetBucketCommand}"
-                CommandParameter="{Binding ItemsSource, ElementName=Root}" />
+        <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal"
+                    HorizontalAlignment="Left" Margin="0,0,0,10"
+                    Visibility="{Binding IsLoaded, Converter={StaticResource BoolToVis}}">
+            <Button Content="Tab Defaults"
+                    ToolTip="Reset every setting on this tab to its built-in default value."
+                    Command="{Binding ResetBucketCommand}"
+                    CommandParameter="{Binding ItemsSource, ElementName=Root}" />
+            <Button Content="Revert from file"
+                    ToolTip="Discard unsaved changes and reload every setting from the saved SandboxSettings.ini on disk."
+                    Command="{Binding RevertFromFileCommand}" />
+        </StackPanel>
 
         <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Top"
                    Style="{StaticResource MutedText}" MaxWidth="520" HorizontalAlignment="Left"
@@ -173,14 +172,14 @@
                           ItemTemplateSelector="{StaticResource Selector}" />
         </ScrollViewer>
 
-        <!-- Context / help panel (plan §6.6) -->
+        <!-- Details panel - populated by clicking a setting row. -->
         <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
                 Background="{StaticResource SurfaceAltBrush}"
                 CornerRadius="6" Padding="14">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <Grid>
                     <TextBlock Style="{StaticResource MutedText}" VerticalAlignment="Top"
-                               Text="Select a setting (or its ? button) to see details."
+                               Text="Click a setting to see its details."
                                Visibility="{Binding SelectedSetting, Converter={StaticResource NullToVis}, ConverterParameter=invert}" />
 
                     <StackPanel DataContext="{Binding SelectedSetting}"
@@ -203,7 +202,7 @@
                         <TextBlock Text="{Binding CurrentValueDisplay}" Margin="0,0,0,8" TextWrapping="Wrap" />
 
                         <TextBlock Text="Default" Style="{StaticResource MutedText}" FontSize="11" />
-                        <TextBlock Text="{Binding DefaultValue, FallbackValue='—', TargetNullValue='—'}"
+                        <TextBlock Text="{Binding DefaultValue, FallbackValue='-', TargetNullValue='-'}"
                                    Margin="0,0,0,8" />
 
                         <TextBlock Text="Range" Style="{StaticResource MutedText}" FontSize="11" />

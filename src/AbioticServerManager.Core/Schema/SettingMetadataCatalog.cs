@@ -7,7 +7,7 @@ namespace AbioticServerManager.Core.Schema;
 /// <summary>
 /// Loads the built-in metadata embedded in this assembly, then layers an optional
 /// user-supplied JSON file on top (same shape). The override lets a future game update be
-/// described without a new app build — "Do not hardcode the facility. Discover it."
+/// described without a new app build - "Do not hardcode the facility. Discover it."
 /// </summary>
 public sealed class SettingMetadataCatalog : ISettingMetadataCatalog
 {

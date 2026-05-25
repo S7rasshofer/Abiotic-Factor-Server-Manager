@@ -3,7 +3,7 @@ namespace AbioticServerManager.Core.Networking;
 /// <summary>
 /// Result of comparing the current LAN IPv4 against the previously persisted
 /// snapshot. A change is worth surfacing because the user may have port
-/// forwarding rules pinned to the old IP — DHCP renegotiations and adapter
+/// forwarding rules pinned to the old IP - DHCP renegotiations and adapter
 /// reshuffles silently break "friends can join over the internet".
 /// </summary>
 public enum InternalIpChange

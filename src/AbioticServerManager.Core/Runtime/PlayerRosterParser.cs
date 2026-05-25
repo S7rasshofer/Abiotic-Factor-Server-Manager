@@ -38,6 +38,16 @@ public static class PlayerRosterParser
         @"CHAT LOG:\s*(?<name>.+?)\s+has entered the facility",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
+    // CHAT LOG:  S7razzy has left the facility.
+    // The analogue of "has entered the facility" - emitted when a player
+    // disconnects normally (close button, quit menu). This is a more reliable
+    // disconnect signal than UNetConnection::Close because it is name-based
+    // (we always have the display name) and does not depend on the connect-id
+    // hex matching the captured PrimaryId.
+    private static readonly Regex LeftFacility = new(
+        @"CHAT LOG:\s*(?<name>.+?)\s+has left the facility",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
     // CHAT LOG:  S7razzy: gg everyone
     // The colon after the name distinguishes a real chat message from the
     // "<name> has entered/left the facility" system lines (which have no colon).
@@ -106,7 +116,20 @@ public static class PlayerRosterParser
                 CleanName(entered.Groups["name"].Value), null, null, null, null, null, text);
         }
 
-        // Checked AFTER EnteredFacility so the "has entered" system line wins.
+        // "has left the facility" must be checked BEFORE the generic chat
+        // regex - same reasoning as EnteredFacility. Emitted as a
+        // Disconnected event with only the display name; the tracker's
+        // MarkOffline already falls back to name-based lookup, so this hits
+        // the same offline path that the UNetConnection close line drives.
+        var left = LeftFacility.Match(text);
+        if (left.Success)
+        {
+            return new PlayerRosterEvent(
+                ts, PlayerRosterEventKind.Disconnected,
+                CleanName(left.Groups["name"].Value), null, null, null, null, null, text);
+        }
+
+        // Checked AFTER EnteredFacility / LeftFacility so the system lines win.
         var chat = ChatMessage.Match(text);
         if (chat.Success)
         {

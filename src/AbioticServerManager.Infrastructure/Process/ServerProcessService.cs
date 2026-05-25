@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using AbioticServerManager.Core.Models;
 using AbioticServerManager.Core.Runtime;
+using AbioticServerManager.Core.Worlds;
 using Microsoft.Extensions.Logging;
 
 namespace AbioticServerManager.Infrastructure.Process;
@@ -16,6 +17,15 @@ public sealed class ServerProcessService : IServerProcessService, IDisposable
         public Win32JobObject? Job { get; init; }
         public bool StopRequested { get; set; }
         public bool Finalized { get; set; }
+
+        /// <summary>
+        /// Sandbox staging context captured at launch. Used to sync any
+        /// AF-modified runtime INIs back to the durable copy after the
+        /// process tree fully exits.
+        /// </summary>
+        public SandboxLaunchPaths? LaunchPaths { get; init; }
+        public SandboxStageResult? StageResult { get; init; }
+        public ServerInstance? StoppedInstance { get; init; }
 
         /// <summary>
         /// True while any process in the tree is alive. Uses the job (so a detached
@@ -47,6 +57,7 @@ public sealed class ServerProcessService : IServerProcessService, IDisposable
     private readonly ConcurrentDictionary<string, RunningServer> _running = new();
     private readonly ILaunchArgumentBuilder _argumentBuilder;
     private readonly IServerExecutableLocator _locator;
+    private readonly ISandboxRuntimeStagingService? _staging;
     private readonly ILogger<ServerProcessService> _logger;
     private readonly TimeSpan _gracefulStopTimeout;
 
@@ -54,10 +65,12 @@ public sealed class ServerProcessService : IServerProcessService, IDisposable
         ILaunchArgumentBuilder argumentBuilder,
         IServerExecutableLocator locator,
         ILogger<ServerProcessService> logger,
-        TimeSpan? gracefulStopTimeout = null)
+        TimeSpan? gracefulStopTimeout = null,
+        ISandboxRuntimeStagingService? staging = null)
     {
         _argumentBuilder = argumentBuilder;
         _locator = locator;
+        _staging = staging;
         _logger = logger;
         _gracefulStopTimeout = gracefulStopTimeout ?? TimeSpan.FromSeconds(5);
     }
@@ -69,21 +82,69 @@ public sealed class ServerProcessService : IServerProcessService, IDisposable
     public bool IsRunning(string instanceId) =>
         _running.TryGetValue(instanceId, out var s) && s.IsAlive();
 
-    public Task<ServerStartResult> StartAsync(ServerInstance instance, CancellationToken ct = default)
+    public async Task<ServerStartResult> StartAsync(ServerInstance instance, CancellationToken ct = default)
     {
         if (IsRunning(instance.Id))
         {
-            return Task.FromResult(ServerStartResult.Fail("This world is already running."));
+            return ServerStartResult.Fail("This world is already running.");
         }
 
         var exe = _locator.Locate(instance.InstallPath);
         if (exe is null)
         {
-            return Task.FromResult(ServerStartResult.Fail(
-                "Could not find the dedicated server executable. Install or update the server first."));
+            return ServerStartResult.Fail(
+                "Could not find the dedicated server executable. Install or update the server first.");
         }
 
-        var arguments = string.Join(' ', _argumentBuilder.BuildArguments(instance));
+        // Stage durable Sandbox/Admin INIs into the install's Saved tree so AF
+        // can find them via the relative path it actually accepts. Without
+        // this, AF would silently fall back to default settings - the user's
+        // saved tuning would never reach the game.
+        SandboxLaunchPaths? launchPaths = null;
+        SandboxStageResult? stageResult = null;
+        ServerInstance launchInstance = instance;
+        if (_staging is not null && !string.IsNullOrWhiteSpace(instance.InstallPath))
+        {
+            try
+            {
+                launchPaths = SandboxLaunchPaths.For(instance);
+                stageResult = await _staging.StageAsync(launchPaths, ct).ConfigureAwait(false);
+                if (!stageResult.Success)
+                {
+                    return ServerStartResult.Fail(
+                        stageResult.FailureReason
+                        ?? "Could not stage world settings into the server install.");
+                }
+
+                // Hand the arg builder a clone that points at the staged copies
+                // so ResolveIniArg can express them as relative-to-Saved.
+                launchInstance = instance.Clone();
+                launchInstance.SandboxIniPath = launchPaths.StagedSandboxPath;
+                launchInstance.AdminIniPath = launchPaths.StagedAdminPath;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
+            {
+                _logger.LogError(ex, "Sandbox staging threw for world {World}", instance.DisplayName);
+                return ServerStartResult.Fail(
+                    "Could not stage world settings into the server install: " + ex.Message);
+            }
+        }
+
+        string arguments;
+        string maskedCommandLine;
+        try
+        {
+            arguments = string.Join(' ', _argumentBuilder.BuildArguments(launchInstance));
+            maskedCommandLine = _argumentBuilder.BuildMaskedCommandLine(launchInstance);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // ResolveIniArg refused to emit an unsafe absolute path; this can
+            // only happen when staging is disabled or InstallPath is missing.
+            _logger.LogError(ex, "Could not build launch arguments for {World}", instance.DisplayName);
+            return ServerStartResult.Fail(ex.Message);
+        }
+
         var startInfo = new ProcessStartInfo
         {
             FileName = exe,
@@ -102,7 +163,7 @@ public sealed class ServerProcessService : IServerProcessService, IDisposable
         {
             if (!process.Start())
             {
-                return Task.FromResult(ServerStartResult.Fail("The server process failed to start."));
+                return ServerStartResult.Fail("The server process failed to start.");
             }
 
             // Assign to the job immediately so children spawned by the launcher
@@ -118,7 +179,14 @@ public sealed class ServerProcessService : IServerProcessService, IDisposable
                 job = null;
             }
 
-            var state = new RunningServer { Process = process, Job = job };
+            var state = new RunningServer
+            {
+                Process = process,
+                Job = job,
+                LaunchPaths = launchPaths,
+                StageResult = stageResult,
+                StoppedInstance = instance,
+            };
             process.OutputDataReceived += (_, e) => Emit(instance.Id, e.Data, isError: false);
             process.ErrorDataReceived += (_, e) => Emit(instance.Id, e.Data, isError: true);
             process.Exited += (_, _) => OnLauncherExited(instance.Id, state);
@@ -131,15 +199,15 @@ public sealed class ServerProcessService : IServerProcessService, IDisposable
                 "Started world {World} (pid {Pid}) with args: {Args}",
                 instance.DisplayName,
                 process.Id,
-                _argumentBuilder.BuildMaskedCommandLine(instance));
+                maskedCommandLine);
 
             RuntimeChanged?.Invoke(this, instance.Id);
-            return Task.FromResult(ServerStartResult.Ok(process.Id));
+            return ServerStartResult.Ok(process.Id);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to start world {World}", instance.DisplayName);
-            return Task.FromResult(ServerStartResult.Fail(ex.Message));
+            return ServerStartResult.Fail(ex.Message);
         }
     }
 
@@ -330,6 +398,28 @@ public sealed class ServerProcessService : IServerProcessService, IDisposable
 
         _running.TryRemove(instanceId, out _);
         state.Job?.Dispose();
+
+        // Sync any AF-modified runtime INIs back to the durable copy. Fire
+        // and forget - this should not block the UI thread that raised the
+        // RuntimeChanged event, and any failure here is logged inside the
+        // staging service rather than surfaced as an error.
+        if (_staging is not null && state.LaunchPaths is not null && state.StageResult is not null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _staging
+                        .SyncBackAsync(state.LaunchPaths, state.StageResult)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Sandbox sync-back failed for {InstanceId}", instanceId);
+                }
+            });
+        }
+
         RuntimeChanged?.Invoke(this, instanceId);
     }
 

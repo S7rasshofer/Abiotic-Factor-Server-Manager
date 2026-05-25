@@ -7,7 +7,7 @@ namespace AbioticServerManager.App.Views;
 
 /// <summary>
 /// Picks the editor template for a setting from its inferred/declared control type.
-/// This is the "generated WPF controls" step of the dynamic settings pipeline (plan §7.1).
+/// This is the "generated WPF controls" step of the dynamic settings pipeline (plan Sec 7.1).
 /// </summary>
 public sealed class SettingTemplateSelector : DataTemplateSelector
 {

@@ -3,7 +3,7 @@ using AbioticServerManager.Core.Runtime;
 namespace AbioticServerManager.Tests.RuntimeTests;
 
 /// <summary>
-/// §4.9: the lobby-code parser, verified against a verbatim line from a real
+/// Sec 4.9: the lobby-code parser, verified against a verbatim line from a real
 /// Facility Overseer dedicated-server <c>AbioticFactor.log</c>.
 /// </summary>
 public class LobbyCodeParserTests

@@ -4,8 +4,8 @@ using AbioticServerManager.Core.Runtime;
 namespace AbioticServerManager.Tests.AdminTests;
 
 /// <summary>
-/// Pure tests for §3.2 (banned ids excluded from active roster, banned page rows
-/// built from sectioned ids + roster) and §3.3 (IsAdmin derivation).
+/// Pure tests for Sec 3.2 (banned ids excluded from active roster, banned page rows
+/// built from sectioned ids + roster) and Sec 3.3 (IsAdmin derivation).
 /// Covers <c>BannedPagePresentationTests</c> and <c>AdminMarkerPresentationTests</c>
 /// from the master plan's test matrix.
 /// </summary>

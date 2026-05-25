@@ -14,7 +14,7 @@ public partial class CreateWorldDialog : Window
     // Indexed to match the ComboBox order: Normal, Hard, Apocalyptic.
     private static readonly string[] DifficultyHints =
     [
-        "A balanced experience — the default for most groups.",
+        "A balanced experience - the default for most groups.",
         "Tougher enemies and tighter survival pressure.",
         "The harshest setting. (Hardcore Mode also forces this difficulty.)",
     ];
@@ -32,7 +32,7 @@ public partial class CreateWorldDialog : Window
     public string WorldName { get; private set; } = "";
 
     /// <summary>
-    /// Abiotic Factor <c>GameDifficulty</c> value — "1" Normal, "2" Hard,
+    /// Abiotic Factor <c>GameDifficulty</c> value - "1" Normal, "2" Hard,
     /// "3" Apocalyptic. Valid only when the dialog returns true.
     /// </summary>
     public string GameDifficulty { get; private set; } = "1";
@@ -54,7 +54,7 @@ public partial class CreateWorldDialog : Window
             MessageBox.Show(
                 this,
                 "Enter a name for the world.",
-                "Facility Overseer — Create World",
+                "Facility Overseer - Create World",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
             return;

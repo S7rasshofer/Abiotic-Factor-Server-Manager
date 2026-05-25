@@ -4,7 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace AbioticServerManager.App.ViewModels;
 
 /// <summary>
-/// Presentation wrapper around a <see cref="PlayerRosterEntry"/>. Adds the §3.3
+/// Presentation wrapper around a <see cref="PlayerRosterEntry"/>. Adds the Sec 3.3
 /// derived <see cref="IsAdmin"/> flag (resolved at render time against the
 /// world's moderator list) without polluting the Core model. The XAML binds
 /// to this row's pass-through properties so the existing template barely
@@ -29,6 +29,10 @@ public sealed partial class RosterRowViewModel : ObservableObject
     public string StatusText => Entry.StatusText;
     public bool IsOnline => Entry.IsOnline;
     public string? Platform => Entry.Platform;
+
+    /// <summary>Heuristic PC/Console label shown on the Players list (see <see cref="PlayerRosterEntry.PlatformDisplay"/>).</summary>
+    public string PlatformDisplay => Entry.PlatformDisplay;
+
     public string? RemoteAddress => Entry.RemoteAddress;
     public string CurrentSessionText => Entry.CurrentSessionText;
     public string LastSeenText => Entry.LastSeenText;
@@ -39,6 +43,6 @@ public sealed partial class RosterRowViewModel : ObservableObject
     [ObservableProperty]
     private bool _isAdmin;
 
-    /// <summary>Superscript glyph rendered after the display name (§3.3).</summary>
-    public static string AdminGlyph => "⁺"; // U+207A SUPERSCRIPT PLUS SIGN
+    /// <summary>Superscript glyph rendered after the display name (Sec 3.3).</summary>
+    public static string AdminGlyph => "+"; // ASCII plus sign, rendered as the admin marker.
 }

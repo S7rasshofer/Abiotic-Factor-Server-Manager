@@ -6,9 +6,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace AbioticServerManager.Tests.FileSystemTests;
 
 /// <summary>
-/// §2.1 acceptance tests: per-world config lives under
+/// Sec 2.1 acceptance tests: per-world config lives under
 /// <c>&lt;DataRoot&gt;/worlds/&lt;id&gt;/config/</c>, a server install wipe
-/// does not touch it, and the legacy → new copy is idempotent.
+/// does not touch it, and the legacy -> new copy is idempotent.
 /// </summary>
 public class WorldIdentityPathsTests : IDisposable
 {
@@ -147,7 +147,7 @@ public class WorldIdentityPathsTests : IDisposable
         var result = await _service.MigrateIfNeededAsync(instance);
 
         Assert.False(result.HadWork);
-        // Target's content is unchanged — we did NOT overwrite a newer in-DataRoot file.
+        // Target's content is unchanged - we did NOT overwrite a newer in-DataRoot file.
         Assert.Equal("NewValue=2", await File.ReadAllTextAsync(targetSandbox));
         // The path field still points at the canonical new location.
         Assert.Equal(targetSandbox, instance.SandboxIniPath);

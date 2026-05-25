@@ -160,25 +160,35 @@ public class LaunchArgumentBuilderTests
     }
 
     [Fact]
-    public void Emits_absolute_config_paths_outside_the_server_saved_root()
+    public void Throws_when_asked_to_emit_an_absolute_path_outside_the_server_saved_root()
     {
-        // §2.1: per-world INIs live under <DataRoot>/worlds/<id>/config/ —
-        // outside the server install, so they cannot be expressed as relative
-        // to <install>/AbioticFactor/Saved/. The launch arg uses the absolute
-        // path (Unreal accepts both forms), so the world's tuning and admins
-        // still reach the server even though they live in DataRoot.
+        // AF's -SandboxIniPath / -AdminIniPath are hard-prefixed with
+        // "../../../AbioticFactor/Saved/" by the dedicated server, so an
+        // absolute Windows path produces a malformed lookup and AF silently
+        // loads defaults instead. Previously this code path emitted the
+        // absolute path and accepted that silent fall-through; the new
+        // contract is loud failure so the launch orchestrator MUST stage
+        // the durable copy into the install Saved tree first.
         var instance = Sample();
         instance.InstallPath = @"C:\Servers\Abiotic";
         instance.SandboxIniPath = @"C:\Data\worlds\w1\config\SandboxSettings.ini";
         instance.AdminIniPath = @"C:\Data\worlds\w1\config\Admin.ini";
 
-        var args = Builder.BuildArguments(instance);
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            Builder.BuildArguments(instance));
 
-        Assert.Contains(args, a =>
-            a.StartsWith("-SandboxIniPath=", StringComparison.Ordinal) &&
-            a.Contains(@"C:\Data\worlds\w1\config\SandboxSettings.ini", StringComparison.Ordinal));
-        Assert.Contains(args, a =>
-            a.StartsWith("-AdminIniPath=", StringComparison.Ordinal) &&
-            a.Contains(@"C:\Data\worlds\w1\config\Admin.ini", StringComparison.Ordinal));
+        Assert.Contains("Stage the file", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Throws_when_install_path_is_missing_so_the_relative_anchor_is_unknown()
+    {
+        // No install path = no <install>/AbioticFactor/Saved/ to express the
+        // path relative to. Refuse rather than emit a path AF cannot load.
+        var instance = Sample();
+        instance.InstallPath = "";
+        instance.SandboxIniPath = @"C:\Data\worlds\w1\config\SandboxSettings.ini";
+
+        Assert.Throws<InvalidOperationException>(() => Builder.BuildArguments(instance));
     }
 }

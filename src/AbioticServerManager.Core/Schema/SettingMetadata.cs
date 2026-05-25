@@ -44,7 +44,7 @@ public sealed record SettingMetadata
     /// <summary>
     /// Human-readable label per option, index-aligned with <see cref="Options"/>. Lets the
     /// dropdown show "Apocalyptic" while still writing "3", instead of dumping the
-    /// "1=Normal, 2=Hard…" legend into the description.
+    /// "1=Normal, 2=Hard..." legend into the description.
     /// </summary>
     public IReadOnlyList<string> OptionLabels { get; init; } = [];
 }

@@ -39,25 +39,25 @@ public static class LanIpLockGuidance
             "Values to paste into your router's DHCP Reservation / Static Lease page:",
         };
 
-        lines.Add($"  • Reserved IP:   {ctx.Ipv4}");
+        lines.Add($"  - Reserved IP:   {ctx.Ipv4}");
 
         if (!string.IsNullOrWhiteSpace(ctx.MacAddress))
         {
-            lines.Add($"  • MAC address:   {ctx.MacAddress}");
+            lines.Add($"  - MAC address:   {ctx.MacAddress}");
         }
         else
         {
-            lines.Add("  • MAC address:   (not detected — see Windows: Settings → Network → Properties)");
+            lines.Add("  - MAC address:   (not detected - see Windows: Settings -> Network -> Properties)");
         }
 
         if (!string.IsNullOrWhiteSpace(ctx.Hostname))
         {
-            lines.Add($"  • Hostname:      {ctx.Hostname}");
+            lines.Add($"  - Hostname:      {ctx.Hostname}");
         }
 
         if (!string.IsNullOrWhiteSpace(ctx.AdapterDescription))
         {
-            lines.Add($"  • Adapter:       {ctx.AdapterDescription}");
+            lines.Add($"  - Adapter:       {ctx.AdapterDescription}");
         }
 
         if (!string.IsNullOrWhiteSpace(ctx.Gateway))
@@ -68,11 +68,11 @@ public static class LanIpLockGuidance
 
         lines.Add("");
         lines.Add("Where to look in your router (typical names):");
-        lines.Add("  – UniFi:          Settings → Networks → (your LAN) → DHCP → Static Leases");
-        lines.Add("  – ASUS:           LAN → DHCP Server → Manually Assigned IP");
-        lines.Add("  – Netgear:        Advanced → Setup → LAN Setup → Address Reservation");
-        lines.Add("  – TP-Link:        Network → DHCP Server → Address Reservation");
-        lines.Add("  – Most ISP boxes: \"DHCP Reservation\" or \"Static Lease\" under LAN/DHCP");
+        lines.Add("  - UniFi:          Settings -> Networks -> (your LAN) -> DHCP -> Static Leases");
+        lines.Add("  - ASUS:           LAN -> DHCP Server -> Manually Assigned IP");
+        lines.Add("  - Netgear:        Advanced -> Setup -> LAN Setup -> Address Reservation");
+        lines.Add("  - TP-Link:        Network -> DHCP Server -> Address Reservation");
+        lines.Add("  - Most ISP boxes: \"DHCP Reservation\" or \"Static Lease\" under LAN/DHCP");
         lines.Add("");
         lines.Add(
             "After saving the reservation, reboot this PC (or release/renew DHCP) so " +

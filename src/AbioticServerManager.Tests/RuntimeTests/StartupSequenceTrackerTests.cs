@@ -72,7 +72,7 @@ public class StartupSequenceTrackerTests
     {
         var t = NewTracker();
         t.OnProcessStarted();
-        t.OnLogLine("net driver listening");      // → WorldLoading in-progress
+        t.OnLogLine("net driver listening");      // -> WorldLoading in-progress
         var changed = t.OnLogLine("World save appears to be corrupt");
 
         Assert.True(changed);
@@ -102,7 +102,7 @@ public class StartupSequenceTrackerTests
         t.OnLogLine("net driver listening");
         t.OnServerStopped(unexpected: false);
 
-        // Active phases stay as-is (Done/InProgress) — graceful stop is not a failure.
+        // Active phases stay as-is (Done/InProgress) - graceful stop is not a failure.
         Assert.DoesNotContain(t.Snapshot.Phases, p => p.Status == StartupPhaseStatus.Failed);
         Assert.False(t.Snapshot.IsRunning);
     }
@@ -130,5 +130,48 @@ public class StartupSequenceTrackerTests
             Assert.False(string.IsNullOrEmpty(p.Label));
             Assert.False(p.Label.Contains('_'), $"Label for {p.Phase} should not contain underscores: '{p.Label}'");
         }
+    }
+
+    [Fact]
+    public void Confirmed_online_promotes_failed_phases_to_done()
+    {
+        // A transient blocking signal during startup (e.g. a stale
+        // "sandbox/admin settings path is invalid" line) marks the
+        // in-progress phase Failed. Direct proof the server is online
+        // (lobby code / A2S reply) is ground truth: the timeline must
+        // reconcile to Done so the "Startup failed" header stops lying.
+        var t = NewTracker();
+        t.OnProcessStarted();
+        // A real blocking signal in ServerHealthSignals.BlockingReason -
+        // "sandbox" + "invalid" together return the sandbox/admin path reason.
+        t.OnLogLine("LogTemp: Sandbox path is invalid for this world");
+        var preSnap = t.Snapshot;
+        Assert.Contains(preSnap.Phases, p => p.Status == StartupPhaseStatus.Failed);
+
+        var changed = t.OnConfirmedOnline();
+
+        Assert.True(changed);
+        var snap = t.Snapshot;
+        Assert.All(snap.Phases, p => Assert.Equal(StartupPhaseStatus.Done, p.Status));
+        // Failure reasons are cleared so a downstream "Startup failed: ..."
+        // summary cannot fish a stale detail out of a Done phase.
+        Assert.All(snap.Phases, p => Assert.Equal(string.Empty, p.Detail));
+    }
+
+    [Fact]
+    public void Confirmed_online_is_idempotent_when_already_done()
+    {
+        var t = NewTracker();
+        t.OnProcessStarted();
+        t.OnLogLine("LogNet: Net driver listening on 0.0.0.0:7777");
+        t.OnLogLine("LogWorld: World loaded");
+        t.OnLogLine("LogEOS: Session creation completed");
+        t.OnLogLine("LogChat: Alice has entered the facility");
+        // First call promotes anything still Pending/InProgress to Done.
+        t.OnConfirmedOnline();
+
+        var changedAgain = t.OnConfirmedOnline();
+
+        Assert.False(changedAgain);
     }
 }

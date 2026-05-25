@@ -105,7 +105,7 @@ public sealed class WindowsNetworkSetupService : INetworkSetupService
         }
 
         // The server executable may not exist yet (server not installed). That
-        // must NOT block firewall creation — the two UDP port rules are what
+        // must NOT block firewall creation - the two UDP port rules are what
         // friends actually need, and they do not depend on the executable. Only
         // the optional program rule needs it, and the script skips that cleanly.
         var executable = _locator.Locate(instance.InstallPath);
@@ -266,7 +266,7 @@ public sealed class WindowsNetworkSetupService : INetworkSetupService
                       "query UDP, and server executable."
                     : "Windows Firewall game and query UDP rules were created and verified. " +
                       "The optional server-executable rule was skipped because the dedicated " +
-                      "server is not installed yet — run Prepare / Update Server, then " +
+                      "server is not installed yet - run Prepare / Update Server, then " +
                       "Create / Repair rules again to add it.",
                 Diagnostics = outcome.RawLog,
                 LogPath = logPath,
@@ -323,7 +323,7 @@ public sealed class WindowsNetworkSetupService : INetworkSetupService
         }
 
         return [.. inspection.Roles
-            // A missing program rule is expected when the server is not installed —
+            // A missing program rule is expected when the server is not installed -
             // do not report it as a verification problem.
             .Where(r => requireProgramRule || r.Role != FirewallRuleRole.Program)
             .Where(r => !r.Exists || !r.IsCorrect)
@@ -509,7 +509,7 @@ public sealed class WindowsNetworkSetupService : INetworkSetupService
             });
         }
 
-        // Router-target drift is covered by the §3.1a launch banner
+        // Router-target drift is covered by the Sec 3.1a launch banner
         // (last-seen LAN IPv4 vs current), so it is no longer tracked here.
     }
 
@@ -586,6 +586,25 @@ public sealed class WindowsNetworkSetupService : INetworkSetupService
                 Status = NetworkCheckStatus.Pass,
                 Summary = "Managed rule is correct.",
                 Details = $"Matched \"{status.DisplayName}\".",
+            };
+        }
+
+        // No managed rule, but a non-managed inbound-allow rule already covers
+        // this port. The port is reachable; do not nag the user to recreate
+        // rules they already configured manually. The "Create / Repair" button
+        // still works and will add a marker-tagged managed rule alongside the
+        // manual one without removing it.
+        if (!status.Exists && status.ManualMatches.Count > 0)
+        {
+            return new NetworkCheckResult
+            {
+                Id = id,
+                Label = label,
+                Category = SetupCheckCategory.FirewallRule,
+                Value = value,
+                Status = NetworkCheckStatus.Pass,
+                Summary = "Non-managed inbound rule(s) already allow this port.",
+                Details = "Matched: " + string.Join(", ", status.ManualMatches),
             };
         }
 

@@ -81,6 +81,15 @@ public sealed record FirewallRuleStatus
     public required bool IsCorrect { get; init; }
     public string DisplayName { get; init; } = "";
     public IReadOnlyList<string> Problems { get; init; } = [];
+
+    /// <summary>
+    /// Display names of non-managed inbound-allow rules that already cover this
+    /// role's port/program. Populated even when no Facility Overseer managed
+    /// rule exists, so callers can treat the port as already-allowed and
+    /// suppress the "Create Windows Firewall rules" nudge for users who set up
+    /// firewall rules manually outside of Facility Overseer.
+    /// </summary>
+    public IReadOnlyList<string> ManualMatches { get; init; } = [];
 }
 
 /// <summary>Local UDP binding + owning process for one port.</summary>

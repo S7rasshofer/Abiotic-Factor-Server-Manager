@@ -5,7 +5,7 @@ namespace AbioticServerManager.Infrastructure.FileSystem;
 
 /// <summary>
 /// Implements <see cref="IResetManagedDataService"/>. Only operates inside the
-/// active <c>DataRoot</c> and <c>VolatileRoot</c> — never an arbitrary path.
+/// active <c>DataRoot</c> and <c>VolatileRoot</c> - never an arbitrary path.
 /// Writes a per-reset report to the in-place logs directory so the user can
 /// review what was removed. The data-root choice pointer is preserved so the
 /// user keeps the location they picked on first run.
@@ -41,7 +41,7 @@ public sealed class ResetManagedDataService : IResetManagedDataService
         // so logs/ can be recreated for the report.
         ClearChildren(_paths.DataRoot, removed, failed, ct);
 
-        // VolatileRoot may equal DataRoot (non-synced location) — only walk it
+        // VolatileRoot may equal DataRoot (non-synced location) - only walk it
         // separately when it's a different path.
         if (!string.Equals(
                 Path.GetFullPath(_paths.DataRoot),
@@ -92,14 +92,14 @@ public sealed class ResetManagedDataService : IResetManagedDataService
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     _logger.LogWarning(ex, "Could not remove {Path} during reset", child);
-                    failed.Add(child + " — " + ex.Message);
+                    failed.Add(child + " - " + ex.Message);
                 }
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _logger.LogWarning(ex, "Could not enumerate {Path} during reset", root);
-            failed.Add(root + " — " + ex.Message);
+            failed.Add(root + " - " + ex.Message);
         }
     }
 
@@ -109,7 +109,7 @@ public sealed class ResetManagedDataService : IResetManagedDataService
         {
             Directory.CreateDirectory(Path.GetDirectoryName(reportPath)!);
             using var writer = new StreamWriter(reportPath);
-            writer.WriteLine($"Facility Overseer — Reset Managed Data Report");
+            writer.WriteLine($"Facility Overseer - Reset Managed Data Report");
             writer.WriteLine($"Generated: {DateTimeOffset.UtcNow:O}");
             writer.WriteLine($"DataRoot:     {_paths.DataRoot}");
             writer.WriteLine($"VolatileRoot: {_paths.VolatileRoot}");

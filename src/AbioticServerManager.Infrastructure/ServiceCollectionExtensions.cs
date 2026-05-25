@@ -37,6 +37,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISteamCmdService, SteamCmdService>();
         services.AddSingleton<IServerInstallStateService, ServerInstallStateService>();
         services.AddSingleton<IWorldIntegrityInspector, WorldIntegrityInspector>();
+        services.AddSingleton<ISandboxRuntimeStagingService, SandboxRuntimeStagingService>();
         services.AddSingleton<IServerProcessService, ServerProcessService>();
         services.AddSingleton<A2SQueryClient>();
         services.AddSingleton<IDiagnosticsService, DiagnosticsService>();

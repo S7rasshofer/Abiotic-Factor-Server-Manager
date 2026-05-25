@@ -1,7 +1,7 @@
 <Window x:Class="AbioticServerManager.App.Views.CreateWorldDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Facility Overseer — Create World"
+        Title="Facility Overseer - Create World"
         Width="500" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"

@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace AbioticServerManager.Infrastructure.FileSystem;
 
 /// <summary>
-/// Concrete §2.1 migration runner. Pure planning lives in
+/// Concrete Sec 2.1 migration runner. Pure planning lives in
 /// <see cref="WorldIdentityMigration"/>; this class adds the IO (copy + log).
 /// Idempotent: re-running is a no-op once the new files exist and are at
 /// least as new as the legacy ones.
@@ -181,14 +181,14 @@ public sealed class WorldIdentityMigrationService : IWorldIdentityMigrationServi
         {
             Directory.CreateDirectory(Path.GetDirectoryName(step.TargetPath)!);
             File.Copy(step.LegacyPath, step.TargetPath, overwrite: false);
-            copied.Add($"{step.Description}: {step.LegacyPath} → {step.TargetPath}");
+            copied.Add($"{step.Description}: {step.LegacyPath} -> {step.TargetPath}");
             _logger.LogInformation(
-                "§2.1 migration: copied {Description} from {Legacy} to {Target}",
+                "Sec 2.1 migration: copied {Description} from {Legacy} to {Target}",
                 step.Description, step.LegacyPath, step.TargetPath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _logger.LogWarning(ex, "§2.1 migration: copy failed for {Description}", step.Description);
+            _logger.LogWarning(ex, "Sec 2.1 migration: copy failed for {Description}", step.Description);
             failed.Add($"{step.Description}: {ex.Message}");
         }
     }
@@ -208,7 +208,7 @@ public sealed class WorldIdentityMigrationService : IWorldIdentityMigrationServi
                 $"migration-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.log");
 
             using var writer = new StreamWriter(reportPath);
-            writer.WriteLine("Facility Overseer — §2.1 World Identity Migration");
+            writer.WriteLine("Facility Overseer - Sec 2.1 World Identity Migration");
             writer.WriteLine($"Generated: {DateTimeOffset.UtcNow:O}");
             writer.WriteLine($"World id:  {worldId}");
             writer.WriteLine();
@@ -236,7 +236,7 @@ public sealed class WorldIdentityMigrationService : IWorldIdentityMigrationServi
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _logger.LogWarning(ex, "Could not write §2.1 migration report for {Id}", worldId);
+            _logger.LogWarning(ex, "Could not write Sec 2.1 migration report for {Id}", worldId);
             return null;
         }
     }

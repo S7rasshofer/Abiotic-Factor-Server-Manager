@@ -91,6 +91,20 @@ public class RecommendedActionsTests
         Assert.Equal("CreateFirewallRulesCommand", fw.CommandHint);
     }
 
+    /// <summary>
+    /// Regression: before the network inspection has run we do not know
+    /// whether the firewall rules exist. Recommending creation in that state
+    /// false-fired on launch even when rules were already in place.
+    /// </summary>
+    [Fact]
+    public void Unknown_firewall_status_does_not_recommend_creation()
+    {
+        var inputs = Defaults() with { FirewallRulesConfigured = null };
+        var actions = RecommendedActions.Build(inputs);
+
+        Assert.DoesNotContain(actions, a => a.Id == "CREATE_FIREWALL_RULES");
+    }
+
     [Fact]
     public void No_worlds_recommends_create_world_command()
     {
@@ -135,7 +149,7 @@ public class RecommendedActionsTests
     {
         var actions = RecommendedActions.Build(Defaults());
 
-        // No worlds-running prompt, no blockers, no errors → either empty or
+        // No worlds-running prompt, no blockers, no errors -> either empty or
         // just informational. Either way, never more than MaxResults.
         Assert.True(actions.Count <= RecommendedActions.MaxResults);
     }

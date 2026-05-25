@@ -16,7 +16,7 @@ public class InternalIpChangeTrackerTests
     [Fact]
     public void First_run_when_no_last_seen_even_if_current_is_missing()
     {
-        // No previous snapshot AND no current IP — still FirstRun (we have no
+        // No previous snapshot AND no current IP - still FirstRun (we have no
         // baseline to claim something was "lost").
         var result = InternalIpChangeTracker.Detect(lastSeen: null, currentIpv4: null);
         Assert.Equal(InternalIpChange.FirstRun, result);
@@ -53,7 +53,7 @@ public class InternalIpChangeTrackerTests
     public void Snapshot_for_returns_null_when_no_ip_to_record()
     {
         // Important: do NOT clobber a good last-seen value with a transient
-        // nothing — the persistence layer should keep the previous snapshot
+        // nothing - the persistence layer should keep the previous snapshot
         // when the current one is empty.
         Assert.Null(InternalIpChangeTracker.SnapshotFor(null, Then));
         Assert.Null(InternalIpChangeTracker.SnapshotFor("", Then));

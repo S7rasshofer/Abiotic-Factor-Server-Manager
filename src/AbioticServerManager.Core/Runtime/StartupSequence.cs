@@ -61,7 +61,7 @@ public sealed record StartupSequenceSnapshot
 
 /// <summary>
 /// Tracks the startup timeline driven by log signals and server-process events.
-/// Pure Core (no IO, no events) — the App layer calls <see cref="OnProcessStarted"/> /
+/// Pure Core (no IO, no events) - the App layer calls <see cref="OnProcessStarted"/> /
 /// <see cref="OnLogLine"/> / <see cref="OnServerStopped"/> and reads the
 /// <see cref="Snapshot"/> for binding.
 /// </summary>
@@ -146,6 +146,39 @@ public sealed class StartupSequenceTracker
                 break;
             }
         }
+    }
+
+    /// <summary>
+    /// Direct evidence (EOS lobby code, A2S reply) confirmed the server is
+    /// genuinely online. That is ground truth: if the server is now accepting
+    /// players, every prior startup phase MUST have succeeded - any earlier
+    /// "Failed" mark came from a transient false-positive blocking signal that
+    /// the server then recovered from on its own. Promote every phase to Done
+    /// so the timeline and the "Startup failed" summary stop contradicting the
+    /// live Online state.
+    /// </summary>
+    public bool OnConfirmedOnline()
+    {
+        var changed = false;
+        var now = Clock();
+        foreach (var phase in Enum.GetValues<StartupPhase>())
+        {
+            if (_phases[phase].Status == StartupPhaseStatus.Done)
+            {
+                continue;
+            }
+
+            _phases[phase] = _phases[phase] with
+            {
+                Status = StartupPhaseStatus.Done,
+                StartedAt = _phases[phase].StartedAt ?? now,
+                CompletedAt = now,
+                Detail = "", // clear stale failure reason so the UI does not lie.
+            };
+            changed = true;
+        }
+
+        return changed;
     }
 
     /// <summary>

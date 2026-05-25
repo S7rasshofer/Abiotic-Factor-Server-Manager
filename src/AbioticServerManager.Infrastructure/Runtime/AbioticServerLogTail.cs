@@ -42,7 +42,7 @@ public sealed class AbioticServerLogTail : IDisposable
     /// <summary>
     /// Starts following the log. New lines are delivered as a BATCH per read
     /// tick (not line-by-line) so the consumer can refresh the UI once per
-    /// tick instead of once per line — a join burst of LogNet lines would
+    /// tick instead of once per line - a join burst of LogNet lines would
     /// otherwise saturate the UI thread.
     /// </summary>
     public static AbioticServerLogTail Start(
@@ -156,7 +156,7 @@ public sealed class AbioticServerLogTail : IDisposable
 
         try
         {
-            // One dispatch per read tick — the consumer refreshes the UI once.
+            // One dispatch per read tick - the consumer refreshes the UI once.
             _onLines(batch);
         }
         catch (Exception ex)

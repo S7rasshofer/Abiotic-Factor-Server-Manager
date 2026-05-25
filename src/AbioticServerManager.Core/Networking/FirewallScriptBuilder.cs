@@ -182,12 +182,14 @@ public static class FirewallScriptBuilder
                     IsCorrect = $false
                     DisplayName = ''
                     Problems = New-Object 'System.Collections.Generic.List[string]'
+                    ManualMatches = @()
                 }
                 try {
                     $rules = Get-ManagedRules $purpose $legacyMarker
                     if ($rules.Count -eq 0) {
                         $row.Problems.Add('No Facility Overseer rule found for this world and purpose.')
                         $manual = @(Find-SimilarManualRules $expectProtocol $expectPort $expectProgram)
+                        $row.ManualMatches = $manual
                         if ($manual.Count -gt 0) {
                             $row.Problems.Add('Similar non-managed inbound allow rule(s) exist: ' + ($manual -join ', ') + '. Repair will create Facility Overseer managed rules without deleting these manual rules.')
                         }
@@ -508,7 +510,7 @@ public static class FirewallScriptBuilder
             try {
                 # The two UDP port rules never depend on the server executable, so
                 # they are always created. The program rule is only attempted when
-                # the executable path is known — a missing server install must NOT
+                # the executable path is known - a missing server install must NOT
                 # block the port rules (that was the "no firewall rules appear" bug).
                 Repair-PortRule {{gamePurpose}} {{gameLegacy}} {{gameName}} {{gameDesc}} {{gamePort}}
                 Repair-PortRule {{queryPurpose}} {{queryLegacy}} {{queryName}} {{queryDesc}} {{queryPort}}

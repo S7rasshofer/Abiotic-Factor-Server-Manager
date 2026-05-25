@@ -3,7 +3,7 @@ using AbioticServerManager.Core.Runtime;
 namespace AbioticServerManager.Core.Admin;
 
 /// <summary>
-/// Source of a banned entry — surfaced on the Banished page so a user can tell
+/// Source of a banned entry - surfaced on the Banished page so a user can tell
 /// "I banned them from the app" from "this id was already in the file".
 /// </summary>
 public enum BanSource
@@ -16,7 +16,7 @@ public enum BanSource
 }
 
 /// <summary>
-/// One row on the §3.2 Banished page. Pure record — IO sits in the VM that
+/// One row on the Sec 3.2 Banished page. Pure record - IO sits in the VM that
 /// composes the sectioned Admin.ini reader with the (already-IO) roster store.
 /// </summary>
 public sealed record BannedPlayerRow(
@@ -39,8 +39,8 @@ public sealed record BannedPlayerRow(
 }
 
 /// <summary>
-/// Pure presentation helpers for §3.2 (banned vs active roster) and §3.3
-/// (admin marker derivation). No IO — the App layer feeds in already-loaded
+/// Pure presentation helpers for Sec 3.2 (banned vs active roster) and Sec 3.3
+/// (admin marker derivation). No IO - the App layer feeds in already-loaded
 /// roster entries, the [BannedPlayers] id list, and the [Moderators] id list.
 /// </summary>
 public static class RosterPresentation
@@ -66,7 +66,7 @@ public static class RosterPresentation
     }
 
     /// <summary>
-    /// Builds the rows shown on §3.2. Last-known display name is filled in
+    /// Builds the rows shown on Sec 3.2. Last-known display name is filled in
     /// from the roster (by SteamID64) when available; date banned is unknown
     /// (best-effort placeholder for now); source is RawIni for every id read
     /// straight out of the sectioned file.
@@ -104,7 +104,7 @@ public static class RosterPresentation
 
     /// <summary>
     /// True when this roster row's captured SteamID64 matches one of the
-    /// moderator ids. Decoration only — moderation operations still use the
+    /// moderator ids. Decoration only - moderation operations still use the
     /// underlying id.
     /// </summary>
     public static bool IsAdmin(PlayerRosterEntry entry, IReadOnlyCollection<string> moderatorSteamIds)

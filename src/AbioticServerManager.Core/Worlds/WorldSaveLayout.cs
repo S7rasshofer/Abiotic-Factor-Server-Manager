@@ -62,7 +62,16 @@ public static class WorldSaveLayout
             : Path.Combine(folder, DefaultSandboxSettings.FileName);
     }
 
-    public static string StagedSandboxPath(ServerInstance instance)
+    /// <summary>
+    /// The runtime staging folder for this world's INI files inside the
+    /// server install: <c>&lt;install&gt;/AbioticFactor/Saved/Config/FacilityOverseer/&lt;world&gt;/</c>.
+    /// Files copied here at launch are reachable by AF via a path relative
+    /// to <c>&lt;install&gt;/AbioticFactor/Saved/</c> - the only form AF's
+    /// <c>-SandboxIniPath</c> / <c>-AdminIniPath</c> launch args actually
+    /// accept (AF hard-prefixes the value with <c>../../../AbioticFactor/Saved/</c>
+    /// rather than honoring absolute Windows paths).
+    /// </summary>
+    public static string StagedConfigFolder(ServerInstance instance)
     {
         if (string.IsNullOrWhiteSpace(instance.InstallPath))
         {
@@ -79,8 +88,28 @@ public static class WorldSaveLayout
             "Saved",
             "Config",
             StagedSandboxFolderName,
-            folder,
-            DefaultSandboxSettings.FileName);
+            folder);
+    }
+
+    public static string StagedSandboxPath(ServerInstance instance)
+    {
+        var folder = StagedConfigFolder(instance);
+        return string.IsNullOrWhiteSpace(folder)
+            ? ""
+            : Path.Combine(folder, DefaultSandboxSettings.FileName);
+    }
+
+    /// <summary>
+    /// Runtime staged path for this world's <c>Admin.ini</c>, parallel to
+    /// <see cref="StagedSandboxPath"/>. Sits in the same per-world staged
+    /// folder so a single Stage/SyncBack cycle covers both files.
+    /// </summary>
+    public static string StagedAdminPath(ServerInstance instance)
+    {
+        var folder = StagedConfigFolder(instance);
+        return string.IsNullOrWhiteSpace(folder)
+            ? ""
+            : Path.Combine(folder, "Admin.ini");
     }
 
     public static bool IsRealWorldSaveFolder(string? path)

@@ -49,6 +49,7 @@ public static class FirewallInspectionParser
                     IsCorrect = Bool(r, "IsCorrect"),
                     DisplayName = Str(r, "DisplayName"),
                     Problems = StrList(r, "Problems"),
+                    ManualMatches = StrList(r, "ManualMatches"),
                 });
             }
         }

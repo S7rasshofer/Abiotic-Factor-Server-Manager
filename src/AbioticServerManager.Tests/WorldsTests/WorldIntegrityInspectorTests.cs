@@ -6,7 +6,7 @@ using AbioticServerManager.Infrastructure.FileSystem;
 namespace AbioticServerManager.Tests.WorldsTests;
 
 /// <summary>
-/// §4.5: verifies the inspector maps a world's on-disk state into the inputs
+/// Sec 4.5: verifies the inspector maps a world's on-disk state into the inputs
 /// the pure <see cref="WorldIntegrityValidator"/> expects. The verdict logic
 /// itself is covered by <see cref="WorldIntegrityValidatorTests"/>.
 /// </summary>
@@ -139,7 +139,7 @@ public sealed class WorldIntegrityInspectorTests : IDisposable
 
         var report = Inspector(executableFound: true).Inspect(instance);
 
-        // Empty paths must NOT trip the "path unset" blocker — IAppPaths always
+        // Empty paths must NOT trip the "path unset" blocker - IAppPaths always
         // resolves a canonical path; the file simply does not exist yet.
         Assert.DoesNotContain(report.Findings, f => f.Id == "SANDBOX_PATH_UNSET");
         Assert.Contains(report.Findings, f =>

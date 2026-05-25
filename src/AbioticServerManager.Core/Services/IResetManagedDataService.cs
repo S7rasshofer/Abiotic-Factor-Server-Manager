@@ -13,7 +13,7 @@ public sealed record ResetManagedDataResult
 }
 
 /// <summary>
-/// Erases the data Facility Overseer manages — both the durable
+/// Erases the data Facility Overseer manages - both the durable
 /// <c>DataRoot</c> (config, world profiles, logs, backups, players) and the
 /// volatile root (SteamCMD + dedicated server install). Quarantine-friendly:
 /// the data-root choice pointer at <c>%LOCALAPPDATA%\FacilityOverseer\data-root.txt</c>

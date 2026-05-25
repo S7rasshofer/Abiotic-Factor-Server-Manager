@@ -36,8 +36,8 @@ public interface IAppPaths
     /// <summary>
     /// Root for durable per-world config/saves/roster/runtime. Sits in
     /// <see cref="DataRoot"/> so it survives a SteamCMD validate or a
-    /// <c>%LOCALAPPDATA%</c> wipe — i.e. the server install can be replaced
-    /// at will without losing world tuning, admins or bans (§2.1).
+    /// <c>%LOCALAPPDATA%</c> wipe - i.e. the server install can be replaced
+    /// at will without losing world tuning, admins or bans (Sec 2.1).
     /// </summary>
     string WorldsDirectory { get; }
 
@@ -81,7 +81,7 @@ public interface IAppPaths
     /// <summary>
     /// Creates the per-world durable folders (<c>config/</c>, <c>saves/</c>,
     /// <c>roster/</c>, <c>runtime/</c>) under <see cref="WorldDirectory"/>.
-    /// Pure path I/O — does not touch the server install.
+    /// Pure path I/O - does not touch the server install.
     /// </summary>
     void EnsureWorldCreated(string worldId);
 }

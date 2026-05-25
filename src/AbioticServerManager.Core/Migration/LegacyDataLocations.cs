@@ -2,7 +2,7 @@ namespace AbioticServerManager.Core.Migration;
 
 /// <summary>
 /// The historical data roots from before the single-data-root model (master
-/// plan §"Migration Plan"). Pure path construction so detection is testable
+/// plan Sec "Migration Plan"). Pure path construction so detection is testable
 /// without touching the real filesystem.
 /// </summary>
 public static class LegacyDataLocations

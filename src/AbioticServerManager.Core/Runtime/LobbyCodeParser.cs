@@ -4,7 +4,7 @@ namespace AbioticServerManager.Core.Runtime;
 
 /// <summary>
 /// Extracts the Abiotic Factor "lobby code" from a dedicated-server log line.
-/// The server publishes it as an EOS session attribute named <c>ShortCode</c> —
+/// The server publishes it as an EOS session attribute named <c>ShortCode</c> -
 /// confirmed verbatim from a real captured server log, e.g.:
 /// <c>LogOnlineSession: EOS: EOS_SessionModification_AddAttribute() named (ShortCode) with value (O8TXQ)</c>.
 /// This is the same short code the game shows in-game as "LOBBY CODE"; it
@@ -12,7 +12,7 @@ namespace AbioticServerManager.Core.Runtime;
 /// </summary>
 public static class LobbyCodeParser
 {
-    // ... named (ShortCode) with value (O8TXQ) — mirrors the PlayerCount pattern.
+    // ... named (ShortCode) with value (O8TXQ) - mirrors the PlayerCount pattern.
     private static readonly Regex ShortCode = new(
         @"\(ShortCode\)\s*with value\s*\((?<code>[^)]*)\)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);

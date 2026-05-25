@@ -7,7 +7,14 @@ public class NetworkConfidenceScoringTests
     [Fact]
     public void Nothing_configured_scores_zero_and_lists_all_lifts()
     {
-        var r = NetworkConfidenceScoring.Score(new NetworkConfidenceInputs());
+        // FirewallRulesConfigured = false means "we checked and rules are
+        // missing", which is the state that drives the firewall lift hint.
+        // A bare default would be null = unknown, which now contributes
+        // nothing - see Unknown_firewall_status_contributes_no_score_and_no_lift.
+        var r = NetworkConfidenceScoring.Score(new NetworkConfidenceInputs
+        {
+            FirewallRulesConfigured = false,
+        });
 
         Assert.Equal(0, r.Score);
         Assert.Equal("None", r.Band);
@@ -28,7 +35,7 @@ public class NetworkConfidenceScoringTests
             IsLanOnly = true,
         });
 
-        // 20 + 25 + 25 = 70 → Good. Public-IP factors are intentionally skipped.
+        // 20 + 25 + 25 = 70 -> Good. Public-IP factors are intentionally skipped.
         Assert.Equal(70, r.Score);
         Assert.Equal("Good", r.Band);
         Assert.Contains(r.Strengths, s => s.Contains("LAN-only", StringComparison.OrdinalIgnoreCase));
@@ -112,5 +119,39 @@ public class NetworkConfidenceScoringTests
 
         Assert.Equal(70, r.Score);
         Assert.Contains(r.Lifts, l => l.Contains("Public IP", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Regression: a null firewall status means the inspection has not run.
+    /// It must contribute neither score nor lift - both would be advising on
+    /// state we have not actually checked.
+    /// </summary>
+    [Fact]
+    public void Unknown_firewall_status_contributes_no_score_and_no_lift()
+    {
+        var unknown = NetworkConfidenceScoring.Score(new NetworkConfidenceInputs
+        {
+            HasLanIpv4 = true,
+            FirewallRulesConfigured = null,
+            A2SLocalResponded = true,
+            HasPublicIpv4 = true,
+            IsLanOnly = false,
+        });
+
+        var configured = NetworkConfidenceScoring.Score(new NetworkConfidenceInputs
+        {
+            HasLanIpv4 = true,
+            FirewallRulesConfigured = true,
+            A2SLocalResponded = true,
+            HasPublicIpv4 = true,
+            IsLanOnly = false,
+        });
+
+        // Null = 25 points lower than configured (the firewall block), with
+        // no "Create Windows Firewall rules" lift hint.
+        Assert.Equal(configured.Score - 25, unknown.Score);
+        Assert.DoesNotContain(
+            unknown.Lifts,
+            l => l.Contains("Windows Firewall rules", StringComparison.OrdinalIgnoreCase));
     }
 }

@@ -5,7 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace AbioticServerManager.App.ViewModels;
 
 /// <summary>
-/// One dynamically-discovered sandbox category — rendered as a sub-tab under
+/// One dynamically-discovered sandbox category - rendered as a sub-tab under
 /// the Settings tab. A new category in a future game update therefore produces
 /// a new tab with zero code changes ("discover, don't hardcode").
 ///
@@ -43,6 +43,8 @@ public sealed class SandboxCategoryViewModel : ObservableObject
     public ICommand SelectCommand => _parent.SelectCommand;
 
     public ICommand ResetBucketCommand => _parent.ResetBucketCommand;
+
+    public ICommand RevertFromFileCommand => _parent.RevertFromFileCommand;
 
     /// <summary>
     /// Called by the parent when a forwarded property changes, so the panel's

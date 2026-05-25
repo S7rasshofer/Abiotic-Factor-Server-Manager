@@ -13,7 +13,7 @@ namespace AbioticServerManager.Core.Admin;
 /// </code>
 /// Everything outside the managed <c>Moderator=</c> lines (the
 /// <c>[BannedPlayers]</c> section, comments, blank lines, placeholder examples)
-/// is preserved verbatim. This is the §2.2 unifier — never round-trip
+/// is preserved verbatim. This is the Sec 2.2 unifier - never round-trip
 /// moderators through a flat file again.
 /// </summary>
 public static class AdminIniModeratorEditor
@@ -71,7 +71,7 @@ public static class AdminIniModeratorEditor
         {
             // No [Moderators] yet. Prepend it (moderators come first by
             // convention in the real Abiotic Factor file), keeping anything
-            // else — comments, the [BannedPlayers] section, blank lines —
+            // else - comments, the [BannedPlayers] section, blank lines -
             // intact after a blank separator line.
             var prepended = new List<string> { Section, Prefix + id };
             if (lines.Count > 0)
@@ -200,7 +200,7 @@ public static class AdminIniModeratorEditor
             var trimmed = lines[i].Trim();
             if (trimmed.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
             {
-                continue; // managed line — drop, rewrite below
+                continue; // managed line - drop, rewrite below
             }
             preserved.Add(lines[i]);
         }

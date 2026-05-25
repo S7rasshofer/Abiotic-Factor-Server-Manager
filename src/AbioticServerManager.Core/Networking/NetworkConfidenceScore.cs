@@ -11,8 +11,13 @@ public sealed record NetworkConfidenceInputs
     /// <summary>True when the LAN IPv4 was detected (any non-null Best).</summary>
     public bool HasLanIpv4 { get; init; }
 
-    /// <summary>True when both UDP rules (game + query) are present in Windows Firewall.</summary>
-    public bool FirewallRulesConfigured { get; init; }
+    /// <summary>
+    /// Firewall status as last observed: true when both UDP rules are present,
+    /// false when the inspection ran and they are missing, null when the
+    /// inspection has not yet completed. Null contributes neither score nor
+    /// lift - we do not advise on something we have not checked.
+    /// </summary>
+    public bool? FirewallRulesConfigured { get; init; }
 
     /// <summary>True when the local A2S query responded.</summary>
     public bool A2SLocalResponded { get; init; }
@@ -61,20 +66,22 @@ public static class NetworkConfidenceScoring
             lifts.Add("Connect this PC to your network (Ethernet or Wi-Fi).");
         }
 
-        if (inputs.FirewallRulesConfigured)
+        if (inputs.FirewallRulesConfigured == true)
         {
             score += 25;
             strengths.Add("Windows Firewall rules configured");
         }
-        else
+        else if (inputs.FirewallRulesConfigured == false)
         {
             lifts.Add("Create Windows Firewall rules on the Network tab (one click).");
         }
+        // null -> firewall status is unknown; contribute nothing until the
+        // network inspection actually runs.
 
         if (inputs.A2SLocalResponded)
         {
             score += 25;
-            strengths.Add("Local A2S query responded — game/query ports are bound");
+            strengths.Add("Local A2S query responded - game/query ports are bound");
         }
         else
         {
@@ -101,12 +108,12 @@ public static class NetworkConfidenceScoring
         }
         else
         {
-            lifts.Add("Public IP could not be detected — check your internet connection.");
+            lifts.Add("Public IP could not be detected - check your internet connection.");
         }
 
         if (inputs.LooksLikeCgnat)
         {
-            // CGNAT alone caps you at "Low" — the only fix is contacting the ISP.
+            // CGNAT alone caps you at "Low" - the only fix is contacting the ISP.
             score = Math.Min(score, 35);
             lifts.Add(
                 "Your public IP looks like Carrier-Grade NAT (100.64.0.0/10). Friends " +

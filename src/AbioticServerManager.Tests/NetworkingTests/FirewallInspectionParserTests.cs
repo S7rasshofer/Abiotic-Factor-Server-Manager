@@ -104,4 +104,50 @@ public class FirewallInspectionParserTests
     [InlineData("steam", false)]
     public void Recognises_server_process(string name, bool expected) =>
         Assert.Equal(expected, FirewallInspectionParser.IsServerProcess(name));
+
+    /// <summary>
+    /// Sec network: when no Facility Overseer managed rule exists but a
+    /// non-managed inbound-allow rule already covers the port, the parser
+    /// must surface that as <see cref="FirewallRuleStatus.ManualMatches"/> so
+    /// the inspector can treat the port as covered and skip the create-rules
+    /// nudge for users who set up firewall rules manually.
+    /// </summary>
+    [Fact]
+    public void Parses_manual_matches_when_no_managed_rule()
+    {
+        const string json = """
+        {
+          "Roles": [
+            {"Role":"game","Exists":false,"IsCorrect":false,"DisplayName":"",
+             "Problems":["No Facility Overseer rule found for this world and purpose."],
+             "ManualMatches":["My Game UDP 7777","Abiotic Factor (inbound)"]}
+          ],
+          "Environment": {"IsElevated":false,"NetworkProfile":"Private","ServerProcessRunning":false,"ServerProcessNames":[]},
+          "Ports": []
+        }
+        """;
+
+        var result = FirewallInspectionParser.ParseInspection(json);
+        var game = result.Roles.Single(r => r.Role == FirewallRuleRole.Game);
+
+        Assert.False(game.Exists);
+        Assert.Equal(2, game.ManualMatches.Count);
+        Assert.Contains("My Game UDP 7777", game.ManualMatches);
+    }
+
+    /// <summary>Single-element manual-match must unwrap correctly under PS 5.1.</summary>
+    [Fact]
+    public void Manual_matches_tolerate_powershell_scalar_unwrap()
+    {
+        const string json = """
+        {
+          "Roles":[{"Role":"game","Exists":false,"IsCorrect":false,"DisplayName":"","Problems":[],"ManualMatches":"Solo manual rule"}],
+          "Environment":{"IsElevated":false,"NetworkProfile":"Private","ServerProcessRunning":false},
+          "Ports":[]
+        }
+        """;
+
+        var result = FirewallInspectionParser.ParseInspection(json);
+        Assert.Equal(["Solo manual rule"], result.Roles[0].ManualMatches);
+    }
 }

@@ -70,7 +70,7 @@ public sealed class AppPaths : IAppPaths
 
     public string PlayersDirectory => Path.Combine(DataRoot, "players");
 
-    // §2.1: World config (sandbox/admin/etc.) lives under DataRoot/worlds/<id>/
+    // Sec 2.1: World config (sandbox/admin/etc.) lives under DataRoot/worlds/<id>/
     // so a SteamCMD validate, a server reinstall, or a VolatileRoot wipe cannot
     // destroy per-world tuning, admins, or bans.
     public string WorldsDirectory => Path.Combine(DataRoot, "worlds");
@@ -245,7 +245,7 @@ public sealed class AppPaths : IAppPaths
 /// Persists the user's chosen data-root path in a tiny pointer file under
 /// <c>%LOCALAPPDATA%\FacilityOverseer\data-root.txt</c>. The pointer lives
 /// at a fixed, known-safe location so it can be consulted before the data
-/// root itself is known — and so the user's choice survives moving or
+/// root itself is known - and so the user's choice survives moving or
 /// republishing the exe.
 /// </summary>
 public static class DataRootChoiceFile

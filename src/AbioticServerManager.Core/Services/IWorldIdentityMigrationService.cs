@@ -3,9 +3,9 @@ using AbioticServerManager.Core.Models;
 namespace AbioticServerManager.Core.Services;
 
 /// <summary>
-/// Outcome of a §2.1 migration pass for one world. Lists what was copied so
+/// Outcome of a Sec 2.1 migration pass for one world. Lists what was copied so
 /// the per-world migration log can record exactly which files moved location
-/// (the original is always left in place — Reset Managed Data cleans up).
+/// (the original is always left in place - Reset Managed Data cleans up).
 /// </summary>
 public sealed record WorldIdentityMigrationResult
 {

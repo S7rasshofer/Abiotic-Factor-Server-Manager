@@ -81,12 +81,54 @@ public class ConfigValidatorTests
     }
 
     [Fact]
-    public void Warns_when_admin_password_missing()
+    public void Warns_when_only_admin_password_missing()
     {
+        // Server password set, admin password empty -> the original specific
+        // ADMIN_PASSWORD_EMPTY card still fires (no consolidation).
         var instance = Valid();
+        instance.ServerPassword = "join-pass";
         instance.AdminPassword = "";
 
-        Assert.True(HasCode(Validator.Validate(instance, []), "ADMIN_PASSWORD_EMPTY"));
+        var result = Validator.Validate(instance, []);
+
+        Assert.True(HasCode(result, "ADMIN_PASSWORD_EMPTY"));
+        Assert.False(HasCode(result, "PASSWORD_EMPTY"));
+        Assert.False(HasCode(result, "PASSWORDS_EMPTY"));
+    }
+
+    [Fact]
+    public void Info_only_when_only_server_password_missing()
+    {
+        var instance = Valid();
+        instance.ServerPassword = "";
+        instance.AdminPassword = "admin-pass";
+
+        var result = Validator.Validate(instance, []);
+
+        Assert.True(HasCode(result, "PASSWORD_EMPTY"));
+        Assert.False(HasCode(result, "ADMIN_PASSWORD_EMPTY"));
+        Assert.False(HasCode(result, "PASSWORDS_EMPTY"));
+    }
+
+    /// <summary>
+    /// Both passwords blank share one root cause and one fix. Emit a single
+    /// consolidated card so the Logs &amp; Status surface does not double up.
+    /// </summary>
+    [Fact]
+    public void Consolidates_when_both_passwords_missing()
+    {
+        var instance = Valid();
+        instance.ServerPassword = "";
+        instance.AdminPassword = "";
+
+        var result = Validator.Validate(instance, []);
+
+        Assert.True(HasCode(result, "PASSWORDS_EMPTY"));
+        Assert.False(HasCode(result, "PASSWORD_EMPTY"));
+        Assert.False(HasCode(result, "ADMIN_PASSWORD_EMPTY"));
+
+        var combined = result.Single(m => m.Code == "PASSWORDS_EMPTY");
+        Assert.Equal(DiagnosticSeverity.Warning, combined.Severity);
     }
 
     [Fact]

@@ -4,7 +4,7 @@ namespace AbioticServerManager.Core.Admin;
 
 /// <summary>
 /// Reads and writes the dedicated server's sectioned <c>Admin.ini</c>
-/// (<c>[Moderators]</c> + <c>[BannedPlayers]</c>). The §2.2 unifier — both the
+/// (<c>[Moderators]</c> + <c>[BannedPlayers]</c>). The Sec 2.2 unifier - both the
 /// Admin tab editor and the Ban/Unban commands target this single file via
 /// the pure <see cref="AdminIniModeratorEditor"/> / <see cref="AdminIniBanEditor"/>
 /// helpers. Comments, blank lines, and example placeholders are preserved.

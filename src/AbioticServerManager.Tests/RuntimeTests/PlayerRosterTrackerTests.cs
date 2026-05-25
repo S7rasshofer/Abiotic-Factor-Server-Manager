@@ -257,7 +257,7 @@ public class PlayerRosterTrackerTests
         t.Apply(Log("EOS_SessionModification_AddAttribute() named (PlayerCount) with value (1)", 1));
         Assert.Equal(1, t.OnlineCount);
 
-        // No UNetConnection::Close line arrives — only the count dropping.
+        // No UNetConnection::Close line arrives - only the count dropping.
         t.Apply(Log("EOS_SessionModification_AddAttribute() named (PlayerCount) with value (0)", 30));
 
         Assert.Equal(0, t.OnlineCount);
@@ -275,7 +275,7 @@ public class PlayerRosterTrackerTests
         t.Apply(Log("LogNet: Join succeeded: S7razzy", 2));
         Assert.True(t.Entries[0].IsOnline);
 
-        // A close line whose hex doesn't match — would leave the player stuck.
+        // A close line whose hex doesn't match - would leave the player stuck.
         t.Apply(Log("LogNet: UNetConnection::Close: ... _+_|deadbeefdeadbeef", 10));
         Assert.True(t.Entries[0].IsOnline); // still stuck at this point
 
@@ -295,5 +295,178 @@ public class PlayerRosterTrackerTests
         Assert.Single(t.Entries);
         Assert.False(t.Entries[0].IsOnline);
         Assert.Equal("disconnected", t.Entries[0].LastActivity);
+    }
+
+    // ---- "has left the facility" chat-style departure ----
+
+    [Fact]
+    public void Parses_left_facility_chat_line_as_disconnect()
+    {
+        var e = PlayerRosterParser.TryParse(Log("CHAT LOG:  S7razzy has left the facility."));
+        Assert.NotNull(e);
+        Assert.Equal(PlayerRosterEventKind.Disconnected, e!.Kind);
+        Assert.Equal("S7razzy", e.DisplayName);
+    }
+
+    [Fact]
+    public void Left_facility_must_win_over_generic_chat_regex()
+    {
+        // The colon-less "X has left the facility" line could otherwise be
+        // misread as a chat message body. Make sure the dedicated regex
+        // claims it first - same ordering rule as EnteredFacility.
+        var e = PlayerRosterParser.TryParse(Log("CHAT LOG:  S7razzy has left the facility."));
+        Assert.NotEqual(PlayerRosterEventKind.Chat, e!.Kind);
+    }
+
+    [Fact]
+    public void Left_facility_marks_a_steam_logged_in_player_offline_by_name()
+    {
+        // This is the user-facing fix: the player logs in via Steam (so the
+        // tracker keys them by SteamID64) and then quits cleanly. AF logs
+        // "has left the facility" with only the display name - no hex - and
+        // the old roster parser had no signal for it, leaving the row stuck
+        // on "online" until server shutdown.
+        var t = new PlayerRosterTracker();
+        t.Apply(Log("LogNet: NotifyAcceptedConnection: ... RemoteAddr: 10.0.0.1:55555 ...", 0));
+        t.Apply(Log(
+            "LogNet: Login request: ?Name=S7razzy??ConnectID=76561198104903704_+_|abc " +
+            "userId: 0002abc platform: EOSPlus", 1));
+        t.Apply(Log("LogNet: Join succeeded: S7razzy", 2));
+        Assert.True(t.Entries[0].IsOnline);
+
+        t.Apply(Log("CHAT LOG:  S7razzy has left the facility.", 300));
+
+        Assert.False(t.Entries[0].IsOnline);
+        Assert.Equal(0, t.OnlineCount);
+        Assert.Equal("disconnected", t.Entries[0].LastActivity);
+    }
+
+    [Fact]
+    public void Left_facility_for_unknown_player_is_a_safe_no_op()
+    {
+        var t = new PlayerRosterTracker();
+        t.Apply(Log("LogNet: Join succeeded: Someone", 0));
+        Assert.True(t.Entries[0].IsOnline);
+
+        t.Apply(Log("CHAT LOG:  GhostPlayer has left the facility.", 1));
+
+        // Existing player must NOT be affected by an unrelated leave line.
+        Assert.True(t.Entries[0].IsOnline);
+    }
+
+    // ---- A2S corroboration reconciliation (live count cross-check) ----
+
+    [Fact]
+    public void Reconcile_with_equal_live_count_is_a_noop()
+    {
+        var t = new PlayerRosterTracker();
+        t.Apply(Log("LogNet: Join succeeded: Alice", 0));
+        t.Apply(Log("LogNet: Join succeeded: Bob", 1));
+        Assert.Equal(2, t.OnlineCount);
+
+        var evicted = t.ReconcileWithLiveCount(2, T0.AddSeconds(60));
+
+        Assert.Empty(evicted);
+        Assert.Equal(2, t.OnlineCount);
+        Assert.Null(t.CountWarning);
+    }
+
+    [Fact]
+    public void Reconcile_with_higher_live_count_does_not_fabricate_rows()
+    {
+        // A2S says 2 but we only know about 1. Never invent a roster row
+        // from a count - we'd have no name, no id, nothing to display.
+        var t = new PlayerRosterTracker();
+        t.Apply(Log("LogNet: Join succeeded: Alice", 0));
+
+        var evicted = t.ReconcileWithLiveCount(2, T0.AddSeconds(60));
+
+        Assert.Empty(evicted);
+        Assert.Single(t.Entries);
+        Assert.Equal(1, t.OnlineCount);
+    }
+
+    [Fact]
+    public void Reconcile_with_lower_live_count_debounces_first_poll()
+    {
+        // A single low reading must not evict anyone - a dropped UDP packet
+        // or a race against a connection accept should not flicker a real
+        // player offline. The debounce gate is exactly the "stuck online
+        // for an hour" prevention the user asked for, minus the false
+        // positives a one-shot evict would cause.
+        var t = new PlayerRosterTracker();
+        t.Apply(Log("LogNet: Join succeeded: Alice", 0));
+        t.Apply(Log("LogNet: Join succeeded: Bob", 1));
+
+        var evicted = t.ReconcileWithLiveCount(1, T0.AddSeconds(60));
+
+        Assert.Empty(evicted);
+        Assert.Equal(2, t.OnlineCount);
+        Assert.NotNull(t.CountWarning); // mismatch is surfaced even when not evicting
+    }
+
+    [Fact]
+    public void Reconcile_with_two_consecutive_low_readings_evicts_oldest_first()
+    {
+        // Alice last seen at T0+0s, Bob at T0+30s. A2S says 1 - the missing
+        // player is the one whose log activity went stale first.
+        var t = new PlayerRosterTracker();
+        t.Apply(Log("LogNet: Join succeeded: Alice", 0));
+        t.Apply(Log("LogNet: Join succeeded: Bob", 30));
+
+        t.ReconcileWithLiveCount(1, T0.AddSeconds(60));
+        var evicted = t.ReconcileWithLiveCount(1, T0.AddSeconds(120));
+
+        var name = Assert.Single(evicted);
+        Assert.Equal("Alice", name);
+        Assert.False(t.Entries.Single(e => e.DisplayName == "Alice").IsOnline);
+        Assert.True(t.Entries.Single(e => e.DisplayName == "Bob").IsOnline);
+        Assert.Equal(1, t.OnlineCount);
+    }
+
+    [Fact]
+    public void Reconcile_resets_debounce_counter_when_match_arrives()
+    {
+        // A mismatch then a clean reading must restart the debouncer - a
+        // subsequent single mismatch cannot inherit the prior count.
+        var t = new PlayerRosterTracker();
+        t.Apply(Log("LogNet: Join succeeded: Alice", 0));
+        t.Apply(Log("LogNet: Join succeeded: Bob", 1));
+
+        t.ReconcileWithLiveCount(1, T0.AddSeconds(60));   // mismatch #1
+        t.ReconcileWithLiveCount(2, T0.AddSeconds(120));  // match - resets
+        var evicted =
+            t.ReconcileWithLiveCount(1, T0.AddSeconds(180)); // new mismatch #1 only
+
+        Assert.Empty(evicted);
+        Assert.Equal(2, t.OnlineCount);
+    }
+
+    [Fact]
+    public void Reconcile_with_zero_evicts_all_after_debounce()
+    {
+        var t = new PlayerRosterTracker();
+        t.Apply(Log("LogNet: Join succeeded: Alice", 0));
+        t.Apply(Log("LogNet: Join succeeded: Bob", 1));
+
+        t.ReconcileWithLiveCount(0, T0.AddSeconds(60));
+        var evicted = t.ReconcileWithLiveCount(0, T0.AddSeconds(120));
+
+        Assert.Equal(2, evicted.Count);
+        Assert.Equal(0, t.OnlineCount);
+    }
+
+    [Fact]
+    public void Reconcile_ignores_negative_live_count()
+    {
+        // A2S parser failure / corrupt payload would never report negative
+        // counts, but a defensive guard keeps the algorithm honest.
+        var t = new PlayerRosterTracker();
+        t.Apply(Log("LogNet: Join succeeded: Alice", 0));
+
+        var evicted = t.ReconcileWithLiveCount(-1, T0.AddSeconds(60));
+
+        Assert.Empty(evicted);
+        Assert.Equal(1, t.OnlineCount);
     }
 }

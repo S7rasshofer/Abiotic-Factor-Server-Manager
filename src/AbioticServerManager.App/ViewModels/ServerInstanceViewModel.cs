@@ -6,6 +6,7 @@ using AbioticServerManager.Core.Diagnostics;
 using AbioticServerManager.Core.Models;
 using AbioticServerManager.Core.Runtime;
 using AbioticServerManager.Core.Worlds;
+using AbioticServerManager.Infrastructure.Networking;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace AbioticServerManager.App.ViewModels;
@@ -18,9 +19,10 @@ public sealed record PlatformAccessOption(PlatformAccessMode Mode, string Label)
 /// </summary>
 public sealed partial class ServerInstanceViewModel : ObservableObject
 {
-    // Vertical tab order after the dynamic-sandbox-tabs consolidation:
-    // 0 Server, 1 Network, 2 Settings, 3 Admin, 4 Backups, 5 Logs & Status.
-    public const int LogsStatusTabIndex = 5;
+    // Vertical tab order: 0 Server, 1 Network, 2 Game Settings, 3 Backups,
+    // 4 Logs & Status. (Admin is now a sub-tab inside Logs & Status.)
+    public const int GameSettingsTabIndex = 2;
+    public const int LogsStatusTabIndex = 4;
 
     private readonly PlayerActivityTracker _playerActivity = new();
     private readonly PlayerRosterTracker _roster = new();
@@ -173,47 +175,95 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
     [ObservableProperty]
     private int _selectedVerticalTabIndex;
 
-    // Switching vertical tabs must not leave a stale Setting Details selection from
-    // another tab on screen.
-    partial void OnSelectedVerticalTabIndexChanged(int value) => Sandbox?.ClearSelection();
+    // Switching vertical tabs clears any stale Setting Details selection and
+    // re-expands the rail (the user just navigated, so show the labels).
+    partial void OnSelectedVerticalTabIndexChanged(int value)
+    {
+        Sandbox?.ClearSelection();
+        IsMainTabRailCondensed = false;
+    }
+
+    /// <summary>
+    /// Whether the main vertical tab rail is condensed to icons only. Set true
+    /// when the user clicks into a tab's content (more room to work), false when
+    /// they click a rail tab so the labels are readable while navigating.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isMainTabRailCondensed;
 
     public bool IsRunning => IsRunningState;
 
-    public string TabHeader => $"{DisplayName}  {(IsRunningState ? "●" : "○")}";
+    public string TabHeader => $"{DisplayName}  {(IsRunningState ? "*" : "o")}";
 
     public ObservableCollection<DiagnosticMessage> Diagnostics { get; } = [];
 
-    // ---- §4.3 Recommended Actions / §4.5 World Integrity (Phase 2 guidance) ----
+    // ---- Sec 4.3 Recommended Actions / Sec 4.5 World Integrity (Phase 2 guidance) ----
 
-    /// <summary>§4.3: ranked next-step suggestions for this world.</summary>
+    /// <summary>Sec 4.3: ranked next-step suggestions for this world.</summary>
     public ObservableCollection<RecommendedAction> RecommendedActions { get; } = [];
 
     [ObservableProperty]
     private bool _hasRecommendedActions;
 
-    /// <summary>§4.5: pre-start integrity findings (blockers / warnings / info).</summary>
+    /// <summary>Sec 4.5: pre-start integrity findings (blockers / warnings / info).</summary>
     public ObservableCollection<WorldIntegrityFinding> IntegrityFindings { get; } = [];
 
     [ObservableProperty]
     private bool _hasIntegrityFindings;
 
+    /// <summary>
+    /// Unified Logs-tab notification strip. Combines the recommended-actions
+    /// summary, the integrity-findings summary, and each individual
+    /// diagnostic into one ordered collection so the WrapPanel can flow
+    /// every chip on a single line (wrapping when full). The list is
+    /// rebuilt by <see cref="RebuildNotificationChips"/> whenever any of
+    /// the three source collections change.
+    /// </summary>
+    public ObservableCollection<object> NotificationChips { get; } = [];
+
+    /// <summary>
+    /// Rebuilds <see cref="NotificationChips"/> from the current state of
+    /// <see cref="HasRecommendedActions"/>, <see cref="HasIntegrityFindings"/>,
+    /// and <see cref="Diagnostics"/>. Cheap (at most a few items), so we
+    /// just clear and re-add rather than diffing.
+    /// </summary>
+    public void RebuildNotificationChips()
+    {
+        NotificationChips.Clear();
+        if (HasRecommendedActions)
+        {
+            NotificationChips.Add(new RecommendedActionsChip(this));
+        }
+        if (HasIntegrityFindings)
+        {
+            NotificationChips.Add(new IntegrityFindingsChip(this));
+        }
+        foreach (var diag in Diagnostics)
+        {
+            NotificationChips.Add(diag);
+        }
+    }
+
     [ObservableProperty]
     private string _integritySummary = "World integrity has not been checked yet.";
 
-    /// <summary>§4.5: false when an integrity blocker is present — drives the pre-start gate.</summary>
+    /// <summary>Sec 4.5: false when an integrity blocker is present - drives the pre-start gate.</summary>
     [ObservableProperty]
     private bool _isWorldLaunchable = true;
 
     /// <summary>
-    /// §4.3: last-known Windows Firewall state, cached from the most recent
+    /// Sec 4.3: last-known Windows Firewall state, cached from the most recent
     /// network inspection so the recommended-actions builder need not re-probe.
+    /// <c>null</c> until the first inspection completes - keeps the false
+    /// "Create firewall rules" prompt from firing before we have actually
+    /// checked the rules.
     /// </summary>
     [ObservableProperty]
-    private bool _firewallRulesConfigured;
+    private bool? _firewallRulesConfigured;
 
-    // ---- §4.6 Startup sequence timeline ----
+    // ---- Sec 4.6 Startup sequence timeline ----
 
-    /// <summary>The 7-phase startup timeline (process → net → world → session → ready).</summary>
+    /// <summary>The 7-phase startup timeline (process -> net -> world -> session -> ready).</summary>
     public ObservableCollection<StartupPhaseEntry> StartupPhases { get; } = [];
 
     [ObservableProperty]
@@ -223,14 +273,14 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
     private string _startupSummary = "";
 
     /// <summary>
-    /// §4.9: the in-game "lobby code" players can use to join directly,
+    /// Sec 4.9: the in-game "lobby code" players can use to join directly,
     /// captured from the dedicated server's EOS session log. Empty when the
     /// server is not running or the code has not been published yet.
     /// </summary>
     [ObservableProperty]
     private string _lobbyCode = "";
 
-    // ---- §4.2 Guided recovery flow ----
+    // ---- Sec 4.2 Guided recovery flow ----
 
     [ObservableProperty]
     private bool _hasRecoveryFlow;
@@ -254,14 +304,14 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
 
     /// <summary>
     /// Durable roster (online first), parsed from real Abiotic Factor logs.
-    /// §3.2: banned ids are filtered out of this collection — they appear on
+    /// Sec 3.2: banned ids are filtered out of this collection - they appear on
     /// the Banished sub-tab only.
-    /// §3.3: each row exposes a derived <c>IsAdmin</c> resolved against the
+    /// Sec 3.3: each row exposes a derived <c>IsAdmin</c> resolved against the
     /// world's moderator list at refresh time.
     /// </summary>
     public ObservableCollection<RosterRowViewModel> Roster { get; } = [];
 
-    /// <summary>§3.2 banished-players page rows (id / last-known name / source / notes).</summary>
+    /// <summary>Sec 3.2 banished-players page rows (id / last-known name / source / notes).</summary>
     public ObservableCollection<BannedPlayerRow> BannedPlayers { get; } = [];
 
     // --- Player Detail tab: populated on double-clicking a roster row ---
@@ -289,12 +339,26 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
 
     public ObservableCollection<NetworkCheckResult> NetworkChecks { get; } = [];
 
-    // ---- §4.7 Network confidence score ----
+    // ---- Phase B: pinned Reachability verdict ----
+
+    /// <summary>Top-of-panel rollup status (Stopped / Reachable / BindingOrWarming / Unreachable).</summary>
+    [ObservableProperty]
+    private NetworkVerdictStatus _reachabilityStatus = NetworkVerdictStatus.Stopped;
+
+    /// <summary>One-line headline for the Reachability verdict banner.</summary>
+    [ObservableProperty]
+    private string _reachabilityHeadline = "Server is stopped.";
+
+    /// <summary>Sub-line detail for the Reachability verdict banner.</summary>
+    [ObservableProperty]
+    private string _reachabilityDetail = "Start the world to check reachability.";
+
+    // ---- Sec 4.7 Network confidence score ----
 
     [ObservableProperty]
     private bool _hasNetworkConfidence;
 
-    /// <summary>Compact "76/100 — Good" summary shown next to the panel title.</summary>
+    /// <summary>Compact "76/100 - Good" summary shown next to the panel title.</summary>
     [ObservableProperty]
     private string _networkConfidenceSummary = "Run Check Setup to score this world's hosting readiness.";
 
@@ -354,13 +418,13 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
 
     /// <summary>
     /// Snapshot of the world's moderator SteamID64 set, refreshed by the shell
-    /// whenever Admin.ini changes. Drives the §3.3 admin marker on roster rows.
+    /// whenever Admin.ini changes. Drives the Sec 3.3 admin marker on roster rows.
     /// </summary>
     public IReadOnlyList<string> ModeratorIds { get; private set; } = [];
 
     /// <summary>
     /// Snapshot of the world's banned SteamID64 set, refreshed by the shell
-    /// whenever Admin.ini changes. Drives §3.2 (filter banned from roster +
+    /// whenever Admin.ini changes. Drives Sec 3.2 (filter banned from roster +
     /// surface them on the Banished page) and the Admin-tab badge count.
     /// </summary>
     public IReadOnlyList<string> BannedIds { get; private set; } = [];
@@ -385,12 +449,12 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
 
     public string HealthStatusText => _health.StatusText;
 
-    /// <summary>§4.2: the active recovery-flow trigger tag while Blocked, else null.</summary>
+    /// <summary>Sec 4.2: the active recovery-flow trigger tag while Blocked, else null.</summary>
     public string? HealthBlockingTag => _health.BlockingTag;
 
     /// <summary>
     /// Honest, single-source-of-truth health value the world status dot binds to.
-    /// Do not bind a dot to <see cref="IsRunningState"/> — process presence is
+    /// Do not bind a dot to <see cref="IsRunningState"/> - process presence is
     /// not health (a corrupt world is briefly running but Blocked).
     /// </summary>
     public ServerHealth Health => _health.Health;
@@ -402,7 +466,7 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
         RefreshStartup();
         PushHealth();
 
-        // §4.9: a fresh session mints a new lobby code; clear the stale one
+        // Sec 4.9: a fresh session mints a new lobby code; clear the stale one
         // until the running server publishes the new code to its log.
         LobbyCode = "";
     }
@@ -423,20 +487,116 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
             PushHealth();
         }
 
-        // §4.6: same log line advances the startup timeline.
+        // Sec 4.6: same log line advances the startup timeline.
         if (_startup.OnLogLine(line.Text))
         {
             RefreshStartup();
         }
 
-        // §4.9: capture the lobby code the server publishes to its EOS session.
+        // Sec 4.9: capture the lobby code the server publishes to its EOS session.
+        // A lobby code is direct proof the EOS session was created - if the log
+        // heuristics decided the world was Blocked from earlier noise, the
+        // published code overrides them.
         if (LobbyCodeParser.TryParse(line.Text) is { } code)
         {
             LobbyCode = code;
+            ConfirmOnlineFromCorroboration(
+                "EOS published a lobby code (the online session is live).");
         }
     }
 
-    /// <summary>§4.6: republishes the startup timeline snapshot for the UI.</summary>
+    /// <summary>
+    /// External proof the server is reachable (A2S reply, EOS lobby code, etc).
+    /// Promotes Starting / Blocked to Online and clears the blocking tag. The
+    /// log-line heuristics can lie via false-positive substring matches; direct
+    /// reachability is the ground truth, so we let it override.
+    /// </summary>
+    public void ConfirmOnlineFromCorroboration(string reason)
+    {
+        if (_health.ConfirmOnlineFromCorroboration(reason))
+        {
+            PushHealth();
+        }
+
+        // Sec 4.6: direct proof the server is online also reconciles the
+        // startup timeline. A transient blocking signal earlier in startup
+        // (e.g. a stale "sandbox/admin settings path is invalid" log line)
+        // would otherwise leave the phase strip and "Startup failed" header
+        // pinned to red even after EOS publishes a lobby code, which is the
+        // exact contradiction the user sees on the Logs tab.
+        if (_startup.OnConfirmedOnline())
+        {
+            RefreshStartup();
+        }
+    }
+
+    // ---- A2S corroboration of the live roster (player-count reconcile) ----
+
+    /// <summary>
+    /// Latest A2S_INFO query timestamp. Drives the "Live roster verified
+    /// at HH:MM:SS" subtle line above the Players column header. Null while
+    /// the loop has not produced a successful poll yet.
+    /// </summary>
+    [ObservableProperty]
+    private DateTimeOffset? _lastA2SCheckAt;
+
+    /// <summary>
+    /// Whether the A2S corroboration loop's most recent polls succeeded.
+    /// Goes false only after a short failure streak so a single dropped
+    /// UDP packet does not flip the indicator pessimistic.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isA2SHealthy = true;
+
+    /// <summary>
+    /// Human-readable verified-status line for the Players tab. Empty until
+    /// the first poll either succeeds (timestamp form) or fails enough to
+    /// trip the unhealthy threshold (warning form).
+    /// </summary>
+    [ObservableProperty]
+    private string _a2SVerifiedText = "";
+
+    private int _a2sFailureStreak;
+
+    /// <summary>
+    /// Records a successful A2S info reply: drives the "Verified at ..."
+    /// status line and hands the live player count to
+    /// <see cref="PlayerRosterTracker.ReconcileWithLiveCount"/>. If the
+    /// reconciler evicts any phantom rows, republish the roster snapshot
+    /// so the Players list updates in place.
+    /// </summary>
+    public void RecordA2SInfo(A2SInfoSnapshot snapshot)
+    {
+        _a2sFailureStreak = 0;
+        LastA2SCheckAt = snapshot.QueriedAt;
+        IsA2SHealthy = true;
+        A2SVerifiedText =
+            $"Live roster verified at {snapshot.QueriedAt.ToLocalTime():HH:mm:ss}";
+
+        var evicted = _roster.ReconcileWithLiveCount(snapshot.PlayerCount, DateTimeOffset.Now);
+        if (evicted.Count > 0)
+        {
+            RefreshRoster();
+        }
+    }
+
+    /// <summary>
+    /// Records a failed A2S poll (timeout, malformed reply, port closed).
+    /// A single failure is silent - the indicator only flips unhealthy after
+    /// two consecutive misses, mirroring the eviction debounce so a UDP
+    /// flicker does not redden the status line.
+    /// </summary>
+    public void RecordA2SFailure()
+    {
+        _a2sFailureStreak++;
+        if (_a2sFailureStreak >= 2)
+        {
+            IsA2SHealthy = false;
+            A2SVerifiedText = "Live verification unavailable (A2S not responding)";
+        }
+    }
+
+    /// <summary>Sec 4.6: republishes the startup timeline snapshot for the UI.</summary>
     private void RefreshStartup()
     {
         var snapshot = _startup.Snapshot;
@@ -455,8 +615,8 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
         StartupSummary = failedPhase is not null
             ? $"Startup failed: {failedPhase.Detail}"
             : done == total
-                ? $"Startup complete — all {total} phases in {snapshot.Elapsed.TotalSeconds:0.0}s."
-                : $"Starting… {done} of {total} phases ({snapshot.Elapsed.TotalSeconds:0.0}s).";
+                ? $"Startup complete - all {total} phases in {snapshot.Elapsed.TotalSeconds:0.0}s."
+                : $"Starting... {done} of {total} phases ({snapshot.Elapsed.TotalSeconds:0.0}s).";
     }
 
     private void PushHealth()
@@ -475,7 +635,7 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
 
     [ObservableProperty]
     private string _externalVisibilityText =
-        "Not checked. Click “Check Visibility” (the server must be running and ports forwarded).";
+        "Not checked. Click 'Check Visibility' (the server must be running and ports forwarded).";
 
     [ObservableProperty]
     private bool _isVisibilityChecking;
@@ -603,7 +763,7 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
         }
 
         PlayerDetailHeader =
-            $"{report.DisplayName} — {report.Activity.Count} activity event(s), " +
+            $"{report.DisplayName} - {report.Activity.Count} activity event(s), " +
             $"{report.Chat.Count(c => c.IsFromPlayer)} chat message(s)";
         HasPlayerDetail = true;
     }
@@ -622,7 +782,7 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
         // next log event).
         var selectedKey = SelectedRosterPlayer?.Key;
 
-        // §3.2: live roster excludes banned ids; they appear only on the
+        // Sec 3.2: live roster excludes banned ids; they appear only on the
         // Banished sub-tab (Banished page rows below).
         var entries = _roster.Entries;
         var visible = RosterPresentation.FilterActive(entries, BannedIds);
@@ -630,7 +790,7 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
         Roster.Clear();
         foreach (var entry in visible)
         {
-            // §3.3: derived IsAdmin per row; decoration only.
+            // Sec 3.3: derived IsAdmin per row; decoration only.
             var isAdmin = RosterPresentation.IsAdmin(entry, ModeratorIds);
             Roster.Add(new RosterRowViewModel(entry, isAdmin));
         }
@@ -646,7 +806,7 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
             PopulatePlayerDetail(detailName);
         }
 
-        // §3.2 banished-players page rows (built from the sectioned ids,
+        // Sec 3.2 banished-players page rows (built from the sectioned ids,
         // joined with the full roster for last-known display name).
         BannedPlayers.Clear();
         foreach (var row in RosterPresentation.BuildBannedRows(BannedIds, entries))
@@ -657,12 +817,12 @@ public sealed partial class ServerInstanceViewModel : ObservableObject
         var header = $"Players Online: {_roster.OnlineCount}/{MaxPlayers}";
         if (_roster.ServerPlayerCount is { } count)
         {
-            header += $"  ·  Server count: {count}";
+            header += $"  -  Server count: {count}";
         }
 
         if (_roster.CountWarning is { Length: > 0 } warning)
         {
-            header += $"  ·  {warning}";
+            header += $"  -  {warning}";
         }
         else if (!_roster.HasSeenActivity)
         {

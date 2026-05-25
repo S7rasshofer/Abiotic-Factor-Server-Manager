@@ -11,6 +11,10 @@
     <Authors>Facility Overseer</Authors>
     <Product>Facility Overseer</Product>
     <NeutralLanguage>en</NeutralLanguage>
+    <!-- Single source of truth for assembly + file + informational version.
+         Propagates to AssemblyVersion / FileVersion / InformationalVersion
+         for every project under this Directory.Build.props. -->
+    <Version>1.1.0</Version>
   </PropertyGroup>
 
 </Project>

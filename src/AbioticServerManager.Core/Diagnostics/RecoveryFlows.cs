@@ -3,7 +3,7 @@ namespace AbioticServerManager.Core.Diagnostics;
 /// <summary>
 /// One step in a <see cref="RecoveryFlow"/>. <see cref="ActionHint"/> names the
 /// observable App command (e.g., <c>CreateFreshWorldCommand</c>) so the UI
-/// renders a real button — flows are data, not prose.
+/// renders a real button - flows are data, not prose.
 /// </summary>
 public sealed record RecoveryStep
 {
@@ -48,7 +48,7 @@ public static class RecoveryFlows
         Title = "World save appears to be corrupt",
         Summary =
             "Abiotic Factor reported that the world save can't be loaded. " +
-            "Facility Overseer never deletes saves — recovery quarantines the " +
+            "Facility Overseer never deletes saves - recovery quarantines the " +
             "corrupt folder so you can investigate, then creates a fresh world " +
             "with your existing sandbox tuning.",
         TriggerTag = "world.corrupt",
@@ -96,7 +96,7 @@ public static class RecoveryFlows
     };
 
     /// <summary>
-    /// Game or query port could not be bound — another process is holding it.
+    /// Game or query port could not be bound - another process is holding it.
     /// </summary>
     public static readonly RecoveryFlow PortConflict = new()
     {
@@ -120,7 +120,7 @@ public static class RecoveryFlows
                 Order = 2,
                 Title = "Change the game / query port",
                 Detail =
-                    "On the Server tab, pick a different game port (7777–7780) or query port (27015–27020). " +
+                    "On the Server tab, pick a different game port (7777-7780) or query port (27015-27020). " +
                     "Remember to update your router port forwarding to match.",
             },
             new RecoveryStep
@@ -166,7 +166,7 @@ public static class RecoveryFlows
     };
 
     /// <summary>
-    /// SteamCMD reports a self-update failure or steam.dll corruption — usually
+    /// SteamCMD reports a self-update failure or steam.dll corruption - usually
     /// caused by syncing tools/ to a OneDrive/Dropbox path. We have a clean reset
     /// path that the App should kick off automatically.
     /// </summary>
@@ -177,7 +177,7 @@ public static class RecoveryFlows
         Summary =
             "SteamCMD reported a 'Failed to load steam.dll' or a self-update error. " +
             "This usually happens when SteamCMD lives in a synced folder " +
-            "(OneDrive/Dropbox/Google Drive) — files get locked mid-write. " +
+            "(OneDrive/Dropbox/Google Drive) - files get locked mid-write. " +
             "Facility Overseer already redirects tools/ off OneDrive automatically; " +
             "the fix is a clean reinstall of SteamCMD.",
         TriggerTag = "steamcmd.broken",

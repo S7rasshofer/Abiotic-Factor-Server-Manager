@@ -2,7 +2,7 @@ namespace AbioticServerManager.Core.Backup;
 
 /// <summary>
 /// "How much can I trust this backup?" reduced to a band the UI can color.
-/// Distinct from integrity-of-bytes — we don't hash payloads here; we judge
+/// Distinct from integrity-of-bytes - we don't hash payloads here; we judge
 /// completeness (world+sandbox+admin) plus age.
 /// </summary>
 public enum BackupConfidenceLevel
@@ -62,7 +62,7 @@ public static class BackupConfidenceCalculator
         {
             Level = level,
             Label = label,
-            Detail = detail + (isStale ? " · Older than the staleness threshold." : ""),
+            Detail = detail + (isStale ? " - Older than the staleness threshold." : ""),
             IsStale = isStale,
             Age = age,
             AgeLabel = FormatAge(age),
@@ -87,7 +87,7 @@ public static class BackupConfidenceCalculator
         }
 
         return (BackupConfidenceLevel.Low,
-            "No world save in this backup — restore will not bring the world back.");
+            "No world save in this backup - restore will not bring the world back.");
     }
 
     private static string FormatAge(TimeSpan age)

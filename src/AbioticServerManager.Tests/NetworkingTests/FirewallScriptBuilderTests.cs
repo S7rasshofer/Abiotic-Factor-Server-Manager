@@ -117,7 +117,7 @@ public class FirewallScriptBuilderTests
     {
         var script = Create(World(), exe: null);
 
-        // Both UDP port rules must still be emitted — a missing executable must
+        // Both UDP port rules must still be emitted - a missing executable must
         // never block them (the "no firewall rules appear" bug).
         Assert.Contains("Facility Overseer - Cascade - Abiotic Factor Game UDP 7777", script);
         Assert.Contains("Facility Overseer - Cascade - Abiotic Factor Query UDP 27015", script);

@@ -96,15 +96,31 @@ public sealed class ConfigValidator : IConfigValidator
             }
         }
 
-        if (string.IsNullOrEmpty(instance.ServerPassword))
+        // Two empty-password facts share one root cause and one fix - the
+        // Server tab's password fields. Emit one combined card when both are
+        // empty so the Logs &amp; Status surface does not double up on
+        // essentially the same nudge.
+        var serverPasswordEmpty = string.IsNullOrEmpty(instance.ServerPassword);
+        var adminPasswordEmpty = string.IsNullOrEmpty(instance.AdminPassword);
+
+        if (serverPasswordEmpty && adminPasswordEmpty)
+        {
+            results.Add(DiagnosticMessage.Warning(
+                "PASSWORDS_EMPTY",
+                "No passwords set",
+                "Neither a server password nor an admin password is configured. " +
+                "Anyone who can reach the server can join, and you cannot use " +
+                "in-game admin commands.",
+                "Set a Server Password and an Admin Password on the Server tab."));
+        }
+        else if (serverPasswordEmpty)
         {
             results.Add(DiagnosticMessage.Info(
                 "PASSWORD_EMPTY",
                 "No server password",
                 "Anyone who can reach the server will be able to join."));
         }
-
-        if (string.IsNullOrEmpty(instance.AdminPassword))
+        else if (adminPasswordEmpty)
         {
             results.Add(DiagnosticMessage.Warning(
                 "ADMIN_PASSWORD_EMPTY",

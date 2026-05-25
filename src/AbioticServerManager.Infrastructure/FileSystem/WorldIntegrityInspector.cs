@@ -7,7 +7,7 @@ using AbioticServerManager.Core.Worlds;
 namespace AbioticServerManager.Infrastructure.FileSystem;
 
 /// <summary>
-/// §4.5: collects a world's filesystem facts and hands them to the pure
+/// Sec 4.5: collects a world's filesystem facts and hands them to the pure
 /// <see cref="WorldIntegrityValidator"/>. The IO lives here so the verdict
 /// stays a unit-testable Core function.
 /// </summary>
@@ -72,7 +72,7 @@ public sealed class WorldIntegrityInspector : IWorldIntegrityInspector
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // An unreadable / locked file is the realistic "corrupt" case —
+            // An unreadable / locked file is the realistic "corrupt" case -
             // the loss-less INI parser itself never throws on bad content.
             return false;
         }

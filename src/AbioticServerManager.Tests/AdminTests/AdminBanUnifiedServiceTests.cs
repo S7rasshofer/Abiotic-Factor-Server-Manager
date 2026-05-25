@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace AbioticServerManager.Tests.AdminTests;
 
 /// <summary>
-/// §2.2 unified-admin/ban acceptance tests. The Admin tab editor
+/// Sec 2.2 unified-admin/ban acceptance tests. The Admin tab editor
 /// (<see cref="AdminListService"/>) and Ban/Unban (<see cref="PlayerBanService"/>)
 /// must target the same sectioned <c>Admin.ini</c> via the same pure writers,
 /// preserving everything outside the one line that changes.
@@ -33,7 +33,7 @@ public class AdminBanUnifiedServiceTests : IDisposable
     private string IniPath() => _admins.ResolveAdminIniPath(_instance);
 
     private const string RealAdminIni =
-        "; managed by Facility Overseer — comments preserved\n" +
+        "; managed by Facility Overseer - comments preserved\n" +
         "[Moderators]\n" +
         "Moderator=76561198000000001\n" +
         "\n" +
@@ -67,8 +67,8 @@ public class AdminBanUnifiedServiceTests : IDisposable
         Assert.Equal(
             ["76561198000000001", "76561198000000002"],
             _admins.Load(path));
-        Assert.Contains("; managed by Facility Overseer — comments preserved", written);
-        // The banned id is byte-identical — Ban/Unban hasn't been touched.
+        Assert.Contains("; managed by Facility Overseer - comments preserved", written);
+        // The banned id is byte-identical - Ban/Unban hasn't been touched.
         Assert.Contains("BannedPlayer=76561198000000099", written);
         Assert.True(AdminIniBanEditor.IsBanned(written, "76561198000000099"));
     }
@@ -89,7 +89,7 @@ public class AdminBanUnifiedServiceTests : IDisposable
         // Moderator list unchanged.
         Assert.Equal(["76561198000000001"], _admins.Load(path));
         // Comments preserved.
-        Assert.Contains("; managed by Facility Overseer — comments preserved", written);
+        Assert.Contains("; managed by Facility Overseer - comments preserved", written);
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public class AdminBanUnifiedServiceTests : IDisposable
         Assert.False(AdminIniBanEditor.IsBanned(written, "76561198000000099"));
         // Moderators and comments preserved.
         Assert.Equal(["76561198000000001"], _admins.Load(path));
-        Assert.Contains("; managed by Facility Overseer — comments preserved", written);
+        Assert.Contains("; managed by Facility Overseer - comments preserved", written);
         Assert.Contains("[BannedPlayers]", written);
     }
 
@@ -118,7 +118,7 @@ public class AdminBanUnifiedServiceTests : IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         const string body =
             "; This file is managed.\n" +
-            "; You can hand-edit comments — they survive.\n" +
+            "; You can hand-edit comments - they survive.\n" +
             "\n" +
             "[Moderators]\n" +
             "Moderator=76561198000000001\n" +
@@ -141,7 +141,7 @@ public class AdminBanUnifiedServiceTests : IDisposable
 
         var final = File.ReadAllText(path);
         Assert.Contains("; This file is managed.", final);
-        Assert.Contains("; You can hand-edit comments — they survive.", final);
+        Assert.Contains("; You can hand-edit comments - they survive.", final);
         Assert.Contains("; example placeholder for next add", final);
         Assert.Equal(["76561198000000001"], _admins.Load(path));
         Assert.Equal(["76561198000000007"], AdminIniBanEditor.ListBans(final));

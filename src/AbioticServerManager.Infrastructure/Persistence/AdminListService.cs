@@ -4,7 +4,7 @@ using AbioticServerManager.Core.Models;
 namespace AbioticServerManager.Infrastructure.Persistence;
 
 /// <summary>
-/// Sectioned <c>Admin.ini</c> store. §2.2 unifier — both the Admin tab editor and the
+/// Sectioned <c>Admin.ini</c> store. Sec 2.2 unifier - both the Admin tab editor and the
 /// Ban/Unban commands target this single file. Moderator changes are routed through
 /// <see cref="AdminIniModeratorEditor"/>; the <c>[BannedPlayers]</c> section is left
 /// byte-identical, as are comments / blank lines / example placeholders.
@@ -13,7 +13,7 @@ public sealed class AdminListService : IAdminListService
 {
     public string ResolveAdminIniPath(ServerInstance instance)
     {
-        // §2.1: after the world-identity migration, instance.AdminIniPath points
+        // Sec 2.1: after the world-identity migration, instance.AdminIniPath points
         // at <DataRoot>/worlds/<id>/config/Admin.ini. Honor it FIRST so a
         // SteamCMD validate or a server reinstall cannot route us back to a
         // freshly-wiped in-install path.

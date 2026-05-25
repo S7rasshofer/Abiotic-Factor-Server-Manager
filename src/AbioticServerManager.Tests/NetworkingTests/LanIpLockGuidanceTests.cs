@@ -47,7 +47,7 @@ public class LanIpLockGuidanceTests
     [Fact]
     public void Includes_a_handful_of_router_brand_hints()
     {
-        // Generic guidance must not assume one router brand — names differ widely.
+        // Generic guidance must not assume one router brand - names differ widely.
         var text = LanIpLockGuidance.Compose(new LanIpLockContext { Ipv4 = "192.168.1.42" });
 
         Assert.Contains("UniFi", text);

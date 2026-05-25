@@ -7,7 +7,7 @@ namespace AbioticServerManager.Core.Diagnostics;
 /// One ranked next-step suggestion. <see cref="CommandHint"/> names the
 /// observable command the App layer can wire up (e.g.,
 /// <c>InstallOrUpdateServerCommand</c>) so the UI doesn't have to interpret
-/// free-text — the recommendation is data, not prose.
+/// free-text - the recommendation is data, not prose.
 /// </summary>
 public sealed record RecommendedAction
 {
@@ -37,7 +37,16 @@ public sealed record RecommendedActionInputs
 {
     public required ServerInstallKind InstallKind { get; init; }
     public required ServerHealth Health { get; init; }
-    public required bool FirewallRulesConfigured { get; init; }
+
+    /// <summary>
+    /// Windows Firewall rule status as last observed. <c>null</c> means the
+    /// network inspection has not run yet for this world - the
+    /// "Create Windows Firewall rules" recommendation deliberately suppresses
+    /// itself in this state so the app does not alarm the user about a
+    /// problem it has not actually checked for.
+    /// </summary>
+    public required bool? FirewallRulesConfigured { get; init; }
+
     public required bool HasLanIpv4 { get; init; }
     public required bool IsLanOnly { get; init; }
     public required bool WorldsExist { get; init; }
@@ -56,7 +65,7 @@ public static class RecommendedActions
     {
         var actions = new List<RecommendedAction>();
 
-        // 1. Install state — nothing else matters if there's no server.
+        // 1. Install state - nothing else matters if there's no server.
         switch (inputs.InstallKind)
         {
             case ServerInstallKind.Missing:
@@ -98,7 +107,7 @@ public static class RecommendedActions
             {
                 Id = "RESOLVE_INTEGRITY_BLOCKERS",
                 Title = "Resolve integrity blockers before starting",
-                Detail = "World-integrity validation surfaced one or more hard blockers — see the Diagnostics panel.",
+                Detail = "World-integrity validation surfaced one or more hard blockers - see the Diagnostics panel.",
                 Priority = RecommendedActionPriority.High,
             });
         }
@@ -127,7 +136,11 @@ public static class RecommendedActions
 
         if (inputs.InstallKind is ServerInstallKind.DetectedUnmanaged or ServerInstallKind.SteamCmdManaged)
         {
-            if (!inputs.FirewallRulesConfigured && !inputs.IsLanOnly)
+            // Only nudge the user to create rules when we have ACTUALLY checked
+            // and found them missing (== false). A null status means the network
+            // inspection has not run yet - showing the prompt then was the
+            // false-positive that fired on launch even when the rules existed.
+            if (inputs.FirewallRulesConfigured == false && !inputs.IsLanOnly)
             {
                 actions.Add(new RecommendedAction
                 {
@@ -145,7 +158,7 @@ public static class RecommendedActions
                 {
                     Id = "CONNECT_TO_NETWORK",
                     Title = "Connect this PC to your network",
-                    Detail = "No LAN IPv4 detected — Wi-Fi or Ethernet must be up before anyone can join.",
+                    Detail = "No LAN IPv4 detected - Wi-Fi or Ethernet must be up before anyone can join.",
                     Priority = RecommendedActionPriority.High,
                 });
             }

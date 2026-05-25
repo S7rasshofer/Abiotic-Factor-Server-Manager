@@ -14,6 +14,12 @@ public sealed class PlayerRosterTracker
     private readonly int _historyLimit;
     private string? _pendingRemoteAddress;
 
+    // Number of consecutive A2S polls that reported fewer players than the
+    // roster believed were online. Eviction is gated behind a value of >= 2
+    // so a single dropped UDP packet (or a poll racing a connection accept)
+    // cannot flicker a real player offline.
+    private int _consecutiveLowMismatchCount;
+
     public PlayerRosterTracker(int historyLimit = 500) =>
         _historyLimit = Math.Max(1, historyLimit);
 
@@ -97,8 +103,8 @@ public sealed class PlayerRosterTracker
                 ServerPlayerCount = evt.PlayerCount;
                 // Authoritative corrective: the server reporting zero players
                 // means nobody is online, full stop. This closes any session
-                // whose disconnect line we failed to match — the "stuck online
-                // for an hour" bug — without waiting for server shutdown.
+                // whose disconnect line we failed to match - the "stuck online
+                // for an hour" bug - without waiting for server shutdown.
                 if (evt.PlayerCount == 0)
                 {
                     foreach (var e in _byKey.Values.Where(e => e.IsOnline))
@@ -152,7 +158,7 @@ public sealed class PlayerRosterTracker
             _chat.RemoveRange(_historyLimit, _chat.Count - _historyLimit);
         }
 
-        // A chat message proves the player is still around — refresh last-seen.
+        // A chat message proves the player is still around - refresh last-seen.
         if (!string.IsNullOrWhiteSpace(evt.DisplayName) &&
             Resolve(null, null, evt.DisplayName, create: false) is { } entry)
         {
@@ -295,4 +301,76 @@ public sealed class PlayerRosterTracker
         CountWarning = ServerPlayerCount is { } c && c != OnlineCount
             ? $"Server reports {c} player(s) but the roster shows {OnlineCount} online."
             : null;
+
+    /// <summary>
+    /// Reconciles the roster's online set against an externally-observed live
+    /// player count (e.g. an A2S query against the running server's query
+    /// port). The corroborator is the ground truth for "how many clients are
+    /// actually connected" - the log-line-driven roster can over-count when
+    /// a disconnect signal is missed (player crash, ungraceful network drop,
+    /// unmatched UNetConnection close hex).
+    /// </summary>
+    /// <remarks>
+    /// Eviction is debounced: a single low reading is ignored (a transient
+    /// UDP blip should not flicker a real player offline), two consecutive
+    /// low readings trigger eviction of the oldest-<see cref="PlayerRosterEntry.LastSeenAt"/>
+    /// entries until the roster matches the live count. A matching or higher
+    /// reading resets the debounce counter.
+    ///
+    /// Returns the display names of any entries that were evicted - empty
+    /// when nothing changed. The caller is responsible for republishing the
+    /// roster snapshot (e.g. <c>RefreshRoster()</c>) when the returned list
+    /// is non-empty.
+    /// </remarks>
+    /// <param name="liveCount">Player count reported by the corroborator. Negative values are ignored.</param>
+    /// <param name="now">Timestamp used for the evicted entries' <see cref="PlayerRosterEntry.LastSeenAt"/>.</param>
+    public IReadOnlyList<string> ReconcileWithLiveCount(int liveCount, DateTimeOffset now)
+    {
+        if (liveCount < 0)
+        {
+            return [];
+        }
+
+        ServerPlayerCount = liveCount;
+
+        var onlineCount = OnlineCount;
+        if (liveCount >= onlineCount)
+        {
+            // Roster matches or under-reports. Either nothing to do, or we
+            // missed a join - never fabricate a row from a count alone.
+            _consecutiveLowMismatchCount = 0;
+            RecomputeCountWarning();
+            return [];
+        }
+
+        // Live count is below the roster's online set - presumed missed
+        // disconnect. Wait for a second confirming poll before evicting.
+        _consecutiveLowMismatchCount++;
+        if (_consecutiveLowMismatchCount < 2)
+        {
+            RecomputeCountWarning();
+            return [];
+        }
+
+        var evictCount = onlineCount - liveCount;
+        var victims = _byKey.Values
+            .Where(e => e.IsOnline)
+            .OrderBy(e => e.LastSeenAt ?? DateTimeOffset.MinValue)
+            .Take(evictCount)
+            .ToList();
+
+        var names = new List<string>(victims.Count);
+        foreach (var victim in victims)
+        {
+            victim.IsOnline = false;
+            victim.CurrentSessionStartedAt = null;
+            victim.LastSeenAt = now;
+            victim.LastActivity = "disconnected (A2S reconcile)";
+            names.Add(victim.DisplayName);
+        }
+
+        _consecutiveLowMismatchCount = 0;
+        RecomputeCountWarning();
+        return names;
+    }
 }

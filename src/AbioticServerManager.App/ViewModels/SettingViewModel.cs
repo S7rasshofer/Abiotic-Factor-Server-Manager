@@ -104,7 +104,7 @@ public sealed partial class SettingViewModel : ObservableObject
 
     /// <summary>
     /// True when this setting is whole-number-valued (its step is a positive
-    /// integer) — e.g. Base Inventory Size, Bonus Perk Points, Structural
+    /// integer) - e.g. Base Inventory Size, Bonus Perk Points, Structural
     /// Support Limit. Drives integer snapping so the slider cannot produce a
     /// fractional value like "12.7 inventory slots".
     /// </summary>
@@ -114,17 +114,17 @@ public sealed partial class SettingViewModel : ObservableObject
     public double LargeStep => Step * 10.0;
 
     public string RangeText => _descriptor.Metadata is { Min: { } min, Max: { } max }
-        ? $"{Format(min)} – {Format(max)}"
+        ? $"{Format(min)} - {Format(max)}"
         : ControlType == SettingControlType.Slider
-            ? $"{Format(Minimum)} – {Format(Maximum)} (inferred)"
-            : "—";
+            ? $"{Format(Minimum)} - {Format(Maximum)} (inferred)"
+            : "-";
 
     public string OptionsText => OptionItems.Count > 0
         ? string.Join(", ", OptionItems.Select(o =>
             o.Value == o.Label ? o.Value : $"{o.Label} ({o.Value})"))
-        : "—";
+        : "-";
 
-    /// <summary>Value formatted for the context panel — shows the label for dropdowns.</summary>
+    /// <summary>Value formatted for the context panel - shows the label for dropdowns.</summary>
     public string CurrentValueDisplay =>
         OptionItems.FirstOrDefault(o => o.Value == _descriptor.Value) is { } match
             ? $"{match.Label} ({match.Value})"

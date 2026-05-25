@@ -39,7 +39,7 @@ public sealed class RunningToBrushConverter : IValueConverter
 
 /// <summary>
 /// Maps <see cref="ServerHealth"/> to the indicator brush. This is the single
-/// source of truth for the world status dot — process presence is not health,
+/// source of truth for the world status dot - process presence is not health,
 /// so binding to <c>IsRunningState</c> was lying (briefly-running corrupt
 /// world = green dot + "Blocked" text).
 /// </summary>
@@ -150,7 +150,7 @@ public sealed class StringToVisibilityConverter : IValueConverter
         throw new NotSupportedException();
 }
 
-/// <summary>Visible when the integer value is greater than zero. Used by the §3.2 ban-count badge.</summary>
+/// <summary>Visible when the integer value is greater than zero. Used by the Sec 3.2 ban-count badge.</summary>
 public sealed class PositiveIntToVisibilityConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
@@ -160,7 +160,25 @@ public sealed class PositiveIntToVisibilityConverter : IValueConverter
         throw new NotSupportedException();
 }
 
-/// <summary>§4.5: maps a world-integrity finding severity to its dot brush.</summary>
+/// <summary>Phase B2: maps the Reachability verdict to its banner dot brush.</summary>
+public sealed class NetworkVerdictStatusToBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is NetworkVerdictStatus s
+            ? s switch
+            {
+                NetworkVerdictStatus.Reachable => new SolidColorBrush(Color.FromRgb(0x79, 0xD6, 0x6B)),
+                NetworkVerdictStatus.BindingOrWarming => new SolidColorBrush(Color.FromRgb(0xE6, 0xB8, 0x4B)),
+                NetworkVerdictStatus.Unreachable => new SolidColorBrush(Color.FromRgb(0xFF, 0x5F, 0x57)),
+                _ => new SolidColorBrush(Color.FromRgb(0xA8, 0xB5, 0xC1)),
+            }
+            : Brushes.Gray;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>Sec 4.5: maps a world-integrity finding severity to its dot brush.</summary>
 public sealed class IntegritySeverityToBrushConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
@@ -178,7 +196,7 @@ public sealed class IntegritySeverityToBrushConverter : IValueConverter
 }
 
 /// <summary>
-/// §4.4: evaluates a backup's confidence (Full / Partial / Limited + age +
+/// Sec 4.4: evaluates a backup's confidence (Full / Partial / Limited + age +
 /// stale flag) at bind time. The resulting <see cref="BackupConfidence"/> is
 /// rendered by an inline badge template on the Backups tab.
 /// </summary>
@@ -193,7 +211,7 @@ public sealed class BackupEntryToConfidenceConverter : IValueConverter
         throw new NotSupportedException();
 }
 
-/// <summary>§4.3: maps a recommended-action priority to its dot brush.</summary>
+/// <summary>Sec 4.3: maps a recommended-action priority to its dot brush.</summary>
 public sealed class RecommendedPriorityToBrushConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
@@ -210,7 +228,7 @@ public sealed class RecommendedPriorityToBrushConverter : IValueConverter
         throw new NotSupportedException();
 }
 
-/// <summary>§4.6: maps a startup-phase status to its timeline dot brush.</summary>
+/// <summary>Sec 4.6: maps a startup-phase status to its timeline dot brush.</summary>
 public sealed class StartupPhaseStatusToBrushConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
@@ -229,8 +247,8 @@ public sealed class StartupPhaseStatusToBrushConverter : IValueConverter
 }
 
 /// <summary>
-/// True / a brush when the bound row is flagged admin (§3.3). Lets the existing
-/// roster template stay declarative — one converter, no code-behind.
+/// True / a brush when the bound row is flagged admin (Sec 3.3). Lets the existing
+/// roster template stay declarative - one converter, no code-behind.
 /// </summary>
 public sealed class IsAdminToBrushConverter : IValueConverter
 {
@@ -239,6 +257,28 @@ public sealed class IsAdminToBrushConverter : IValueConverter
 
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
         value is true ? AdminBrush : DefaultBrush;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Maps a sandbox category name (World / Player / Enemy / etc.) to a small icon
+/// glyph for the Game Settings sub-tabs. Unknown or future categories fall back
+/// to a generic glyph so a new category still gets an icon.
+/// </summary>
+public sealed class CategoryIconConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        (value as string)?.Trim().ToLowerInvariant() switch
+        {
+            "world" => "\U0001F30D",
+            "player" => "\U0001F464",
+            "enemy" => "\U0001F47E",
+            "survival" => "\U0001F356",
+            "advanced" => "\U0001F9E9",
+            _ => "\U0001F4C4",
+        };
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
         throw new NotSupportedException();

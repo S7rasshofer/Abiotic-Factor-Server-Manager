@@ -5,13 +5,13 @@ namespace AbioticServerManager.Core.Worlds;
 /// </summary>
 public enum WorldIntegritySeverity
 {
-    /// <summary>Informational — nothing to block on.</summary>
+    /// <summary>Informational - nothing to block on.</summary>
     Info,
 
     /// <summary>Likely to bite the user if not addressed, but not a hard block.</summary>
     Warning,
 
-    /// <summary>Hard block — Start should not be enabled until the user resolves it.</summary>
+    /// <summary>Hard block - Start should not be enabled until the user resolves it.</summary>
     Blocker,
 }
 
@@ -23,6 +23,17 @@ public sealed record WorldIntegrityFinding
     public required string Title { get; init; }
     public required string Detail { get; init; }
     public string SuggestedFix { get; init; } = "";
+
+    /// <summary>
+    /// Name of the App command that resolves this finding (e.g.
+    /// <c>SaveSandboxCommand</c>). Empty when the fix needs the user to make
+    /// a manual choice. Parallels <c>RecommendedAction.CommandHint</c> so the
+    /// UI can render a single "do this" button next to the row.
+    /// </summary>
+    public string CommandHint { get; init; } = "";
+
+    /// <summary>Label for the button when <see cref="CommandHint"/> is set.</summary>
+    public string ActionLabel { get; init; } = "";
 }
 
 public sealed record WorldIntegrityReport
@@ -84,6 +95,8 @@ public static class WorldIntegrityValidator
                 Title = "Server executable not found",
                 Detail = "Facility Overseer could not locate AbioticFactorServer-Win64-Shipping.exe.",
                 SuggestedFix = "Click Prepare / Update Server to install or repair the dedicated server.",
+                CommandHint = "InstallOrUpdateServerCommand",
+                ActionLabel = "Prepare / Update Server",
             });
         }
 
@@ -95,7 +108,7 @@ public static class WorldIntegrityValidator
                 Severity = WorldIntegritySeverity.Blocker,
                 Title = "Sandbox settings path is not set",
                 Detail = "No per-world SandboxSettings.ini path has been resolved.",
-                SuggestedFix = "Reopen the app — the §2.1 world-identity migration should set this on next load.",
+                SuggestedFix = "Reopen the app - the Sec 2.1 world-identity migration should set this on next load.",
             });
         }
         else
@@ -109,6 +122,8 @@ public static class WorldIntegrityValidator
                     Title = "Sandbox settings file missing",
                     Detail = $"{inputs.SandboxIniPath} does not exist yet.",
                     SuggestedFix = "Open the World / Player / Enemy tabs and Save Sandbox to generate the file.",
+                    CommandHint = "SaveSandboxCommand",
+                    ActionLabel = "Save Sandbox",
                 });
             }
             else if (!inputs.SandboxIniParses)
@@ -132,7 +147,7 @@ public static class WorldIntegrityValidator
                     Title = "Sandbox settings live inside the server install",
                     Detail =
                         "A SteamCMD validate or server reinstall will destroy this file. " +
-                        "The §2.1 migration moves it under <DataRoot>/worlds/<id>/config/.",
+                        "The Sec 2.1 migration moves it under <DataRoot>/worlds/<id>/config/.",
                     SuggestedFix = "Reopen the app to let the migration run, then verify the new path.",
                 });
             }
@@ -146,7 +161,7 @@ public static class WorldIntegrityValidator
                 Severity = WorldIntegritySeverity.Info,
                 Title = "Admin / ban list path is not set",
                 Detail = "No per-world Admin.ini path has been resolved.",
-                SuggestedFix = "This is fine for a fresh world — the file is created on first admin edit.",
+                SuggestedFix = "This is fine for a fresh world - the file is created on first admin edit.",
             });
         }
         else if (!inputs.AdminIniExists)

@@ -7,7 +7,7 @@ namespace AbioticServerManager.App.ViewModels;
 
 /// <summary>
 /// Per-world sandbox editor state. Settings are grouped onto dynamically
-/// discovered category tabs — a new category in <c>SandboxSettings.ini</c>
+/// discovered category tabs - a new category in <c>SandboxSettings.ini</c>
 /// produces a new tab automatically, and unknown/uncategorised keys land on
 /// the "Advanced" category and are never dropped.
 /// </summary>
@@ -23,7 +23,7 @@ public sealed partial class SandboxSettingsViewModel : ObservableObject
 
     /// <summary>
     /// One entry per discovered sandbox category, ordered World / Player /
-    /// Survival / Enemy / (others A–Z) / Advanced. Bound directly as the
+    /// Survival / Enemy / (others A-Z) / Advanced. Bound directly as the
     /// Settings tab's sub-tab source.
     /// </summary>
     public ObservableCollection<SandboxCategoryViewModel> Categories { get; } = [];
@@ -72,7 +72,7 @@ public sealed partial class SandboxSettingsViewModel : ObservableObject
         Categories.Clear();
 
         // Group by the setting's actual category. A category we have never seen
-        // before still gets its own tab — no code change required.
+        // before still gets its own tab - no code change required.
         var grouped = document.Settings
             .Select(d => new SettingViewModel(d, ApplyEdit))
             .GroupBy(svm => NormalizeCategory(svm.Descriptor.Category))
@@ -101,7 +101,7 @@ public sealed partial class SandboxSettingsViewModel : ObservableObject
         var unknown = document.Settings.Count(s => !s.IsKnown);
         StatusText = $"{document.Settings.Count} settings loaded" +
                      (unknown > 0 ? $" ({unknown} unknown, preserved)" : "") +
-                     $" — {document.FilePath}";
+                     $" - {document.FilePath}";
     }
 
     public async Task SaveAsync()
@@ -114,6 +114,24 @@ public sealed partial class SandboxSettingsViewModel : ObservableObject
         await _service.SaveAsync(_document);
         IsDirty = false;
         StatusText = $"Saved {_document.FilePath}";
+    }
+
+    /// <summary>
+    /// Reloads every setting from the saved SandboxSettings.ini on disk,
+    /// discarding unsaved in-memory edits. Lets the user experiment freely and
+    /// roll back to whatever is on disk.
+    /// </summary>
+    [RelayCommand]
+    private async Task RevertFromFile()
+    {
+        if (_document is null)
+        {
+            return;
+        }
+
+        var doc = await _service.LoadAsync(_document.FilePath);
+        LoadFrom(doc);
+        StatusText = $"Reverted to the saved file - {doc.FilePath}";
     }
 
     private void ApplyEdit(SettingViewModel setting, string value)

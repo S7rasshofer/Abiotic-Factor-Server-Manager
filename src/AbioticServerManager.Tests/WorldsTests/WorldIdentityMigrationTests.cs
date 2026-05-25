@@ -119,7 +119,7 @@ public class WorldIdentityMigrationTests
         var legacy = @"C:\install\old\Admin.ini";
         var target = @"D:\Data\worlds\W1\config\Admin.ini";
 
-        // First call: only legacy exists → would copy.
+        // First call: only legacy exists -> would copy.
         var existsBefore = (string p) => p == legacy;
         var planBefore = WorldIdentityMigration.Plan(
             legacy, legacy, target, target, existsBefore, _ => Then);

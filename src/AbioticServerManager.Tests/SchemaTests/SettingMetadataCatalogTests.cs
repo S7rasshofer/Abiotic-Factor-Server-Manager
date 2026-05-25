@@ -31,7 +31,7 @@ public class SettingMetadataCatalogTests
         Assert.Equal(["1", "2", "3"], difficulty.Options);
         // Human labels index-aligned with the values.
         Assert.Equal(["Normal", "Hard", "Apocalyptic"], difficulty.OptionLabels);
-        // The "1=Normal, 2=Hard…" legend must NOT live in the description anymore.
+        // The "1=Normal, 2=Hard..." legend must NOT live in the description anymore.
         Assert.DoesNotContain("=", difficulty.Description ?? "");
         Assert.DoesNotContain("Values", difficulty.Description ?? "");
     }
@@ -169,7 +169,7 @@ public class SettingMetadataCatalogTests
     public void Number_setting_default_sits_on_the_snap_grid(string key)
     {
         // With slider tick-snapping enabled, both the default and the max must
-        // be an exact number of steps from the min — otherwise the user can
+        // be an exact number of steps from the min - otherwise the user can
         // never land the slider on the default value.
         var m = new SettingMetadataCatalog().Find("SandboxSettings", key)!;
         var min = m.Min!.Value;

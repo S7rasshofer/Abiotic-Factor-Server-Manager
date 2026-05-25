@@ -14,4 +14,8 @@
     <ProjectReference Include="..\AbioticServerManager.Core\AbioticServerManager.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="AbioticServerManager.Tests" />
+  </ItemGroup>
+
 </Project>

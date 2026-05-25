@@ -6,7 +6,7 @@ namespace AbioticServerManager.Infrastructure.Networking;
 /// <summary>
 /// Resolves the host's public IPv4 by calling a small plaintext endpoint that
 /// echoes the caller's address. Cached per-instance so repeated UI refreshes
-/// don't hammer the endpoint. Never throws — public IP is best-effort context,
+/// don't hammer the endpoint. Never throws - public IP is best-effort context,
 /// not a critical path.
 /// </summary>
 public sealed class HttpPublicIpProbe : IPublicIpProbe, IDisposable

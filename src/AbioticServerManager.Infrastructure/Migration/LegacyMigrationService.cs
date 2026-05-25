@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using AbioticServerManager.Core.Migration;
 using AbioticServerManager.Core.Services;
 using Microsoft.Extensions.Logging;
@@ -107,6 +108,26 @@ public sealed class LegacyMigrationService : ILegacyMigrationService
         };
     }
 
+    public async Task MarkMigrationDeclinedAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            Directory.CreateDirectory(_paths.ConfigDirectory);
+            await File.WriteAllTextAsync(
+                MarkerPath,
+                "declined:" + DateTimeOffset.Now.ToString("o"),
+                ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Best-effort. If we cannot write the marker the user will see the
+            // prompt again next launch; nothing is lost.
+            _logger.LogWarning(
+                ex,
+                "Could not write legacy-migration marker after Start Fresh");
+        }
+    }
+
     private string MarkerPath => Path.Combine(_paths.ConfigDirectory, MarkerName);
 
     private IReadOnlyList<LegacyFinding> Detect()
@@ -131,14 +152,16 @@ public sealed class LegacyMigrationService : ILegacyMigrationService
                     continue;
                 }
 
+                var instancesFile = FindFile(candidate, "instances.json");
                 var finding = new LegacyFinding
                 {
                     Root = candidate,
-                    HasInstances = FindFile(candidate, "instances.json") is not null,
+                    HasInstances = instancesFile is not null,
                     HasSettings = FindFile(candidate, "settings.json") is not null,
                     HasLogs = Directory.Exists(Path.Combine(candidate, "logs")),
                     HasBackups = Directory.Exists(Path.Combine(candidate, "backups")),
                     HasServer = HasServerExecutable(candidate),
+                    WorldNames = PeekWorldNamesLogged(instancesFile),
                 };
 
                 if (finding.HasAnything)
@@ -170,6 +193,73 @@ public sealed class LegacyMigrationService : ILegacyMigrationService
 
         var atConfig = Path.Combine(root, "config", name);
         return File.Exists(atConfig) ? atConfig : null;
+    }
+
+    private IReadOnlyList<string> PeekWorldNamesLogged(string? instancesFile)
+    {
+        try
+        {
+            return PeekWorldNames(instancesFile);
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            _logger.LogDebug(
+                ex,
+                "Could not preview world names from legacy {File}",
+                instancesFile);
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Best-effort preview of the worlds inside a legacy <c>instances.json</c>
+    /// so the import dialog can show "Import these worlds: Cascade, …" instead
+    /// of an opaque path. Tolerates schema drift - unknown shapes just yield
+    /// an empty preview. Exposed as a static helper so the parsing rule is
+    /// unit-testable without standing up the whole migration service.
+    /// </summary>
+    internal static IReadOnlyList<string> PeekWorldNames(string? instancesFile)
+    {
+        if (string.IsNullOrWhiteSpace(instancesFile) || !File.Exists(instancesFile))
+        {
+            return [];
+        }
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(instancesFile));
+        if (doc.RootElement.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var names = new List<string>();
+        foreach (var entry in doc.RootElement.EnumerateArray())
+        {
+            if (entry.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            // Property name is camelCase in current files, PascalCase in
+            // very old ones - look for both rather than failing the preview.
+            string? name = null;
+            if (entry.TryGetProperty("displayName", out var camel) &&
+                camel.ValueKind == JsonValueKind.String)
+            {
+                name = camel.GetString();
+            }
+            else if (entry.TryGetProperty("DisplayName", out var pascal) &&
+                     pascal.ValueKind == JsonValueKind.String)
+            {
+                name = pascal.GetString();
+            }
+
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                names.Add(name);
+            }
+        }
+
+        return names;
     }
 
     private static bool HasServerExecutable(string root)

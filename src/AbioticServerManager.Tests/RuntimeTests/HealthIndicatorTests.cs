@@ -17,7 +17,7 @@ public class HealthIndicatorTests
     public void Every_health_value_is_explicitly_mapped()
     {
         // Catches the case where a new ServerHealth enum value is added but the
-        // indicator switch isn't updated — the default fallback to Grey would
+        // indicator switch isn't updated - the default fallback to Grey would
         // otherwise silently misrepresent the new state.
         foreach (ServerHealth health in Enum.GetValues<ServerHealth>())
         {

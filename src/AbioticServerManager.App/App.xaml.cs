@@ -24,7 +24,7 @@ public partial class App : Application
 
         // The data-root picker is shown and closed before MainWindow exists. Under
         // the default OnLastWindowClose shutdown mode, closing the picker would quit
-        // the app before the main window opens — so hold shutdown explicitly until
+        // the app before the main window opens - so hold shutdown explicitly until
         // MainWindow is up (restored to OnMainWindowClose below).
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
@@ -79,7 +79,7 @@ public partial class App : Application
         MainWindow = window;
         window.Show();
 
-        // MainWindow is up — closing it now exits the app normally.
+        // MainWindow is up - closing it now exits the app normally.
         ShutdownMode = ShutdownMode.OnMainWindowClose;
 
         await _host.Services.GetRequiredService<MainViewModel>().InitializeAsync();

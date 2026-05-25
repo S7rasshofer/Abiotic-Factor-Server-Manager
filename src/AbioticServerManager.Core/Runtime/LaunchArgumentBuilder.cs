@@ -93,11 +93,25 @@ public sealed class LaunchArgumentBuilder : ILaunchArgumentBuilder
     }
 
     /// <summary>
-    /// §2.1: per-world INIs may live under <c>&lt;DataRoot&gt;/worlds/&lt;id&gt;/config/</c>
-    /// (outside the server install). When the path can be expressed as relative to
-    /// <c>&lt;install&gt;/AbioticFactor/Saved/</c> we keep that historical form;
-    /// otherwise we emit the absolute path so an out-of-install config is reachable.
+    /// Builds the relative <c>-SandboxIniPath</c> / <c>-AdminIniPath</c> arg
+    /// value AF actually accepts. The dedicated server hard-prefixes the
+    /// value with <c>../../../AbioticFactor/Saved/</c> before resolving it,
+    /// so the arg MUST be a path relative to <c>&lt;install&gt;/AbioticFactor/Saved/</c>.
+    /// Absolute Windows paths produce the malformed lookup
+    /// <c>../../../AbioticFactor/Saved/C:\Users\...\SandboxSettings.ini</c>
+    /// and AF silently falls back to defaults - that was the
+    /// "settings don't take effect" bug.
     /// </summary>
+    /// <remarks>
+    /// Per-world INIs live under <c>&lt;DataRoot&gt;/worlds/&lt;id&gt;/config/</c>
+    /// (outside the server install). The launch orchestrator
+    /// (<c>ServerProcessService</c>) is responsible for staging those files
+    /// into <c>&lt;install&gt;/AbioticFactor/Saved/Config/FacilityOverseer/&lt;id&gt;/</c>
+    /// before calling <see cref="BuildArguments"/>, so by the time this
+    /// method runs the path IS inside the install Saved tree. Anything that
+    /// doesn't fit that contract is a programmer error and gets a loud
+    /// exception rather than the previous silent-absolute fallback.
+    /// </remarks>
     private static string? ResolveIniArg(string installPath, string path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -107,21 +121,29 @@ public sealed class LaunchArgumentBuilder : ILaunchArgumentBuilder
 
         if (!Path.IsPathFullyQualified(path))
         {
+            // Caller already pre-relativized (legacy AF in-install layout).
             return NormalizeSeparators(path);
         }
 
-        if (!string.IsNullOrWhiteSpace(installPath))
+        if (string.IsNullOrWhiteSpace(installPath))
         {
-            var savedRoot = Path.Combine(installPath, "AbioticFactor", "Saved");
-            var relative = Path.GetRelativePath(savedRoot, path);
-            if (IsRelativeSubPath(relative))
-            {
-                return NormalizeSeparators(relative);
-            }
+            throw new InvalidOperationException(
+                $"Cannot build a relative -*IniPath arg for '{path}' because the " +
+                "ServerInstance has no InstallPath. Set InstallPath first or stage " +
+                "the file under <install>/AbioticFactor/Saved/.");
         }
 
-        // Outside the install: emit the absolute path (Unreal accepts both forms).
-        return path;
+        var savedRoot = Path.Combine(installPath, "AbioticFactor", "Saved");
+        var relative = Path.GetRelativePath(savedRoot, path);
+        if (IsRelativeSubPath(relative))
+        {
+            return NormalizeSeparators(relative);
+        }
+
+        throw new InvalidOperationException(
+            $"Cannot pass '{path}' as a -*IniPath launch arg: it lives outside " +
+            $"'{savedRoot}'. Stage the file into that tree first (see " +
+            "SandboxLaunchPaths + SandboxRuntimeStagingService).");
     }
 
     private static bool IsRelativeSubPath(string path) =>

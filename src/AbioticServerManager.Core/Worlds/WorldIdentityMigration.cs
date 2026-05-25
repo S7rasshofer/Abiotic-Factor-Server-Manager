@@ -1,12 +1,12 @@
 namespace AbioticServerManager.Core.Worlds;
 
 /// <summary>
-/// Pure planner for the §2.1 world-identity migration: per-world
+/// Pure planner for the Sec 2.1 world-identity migration: per-world
 /// <c>SandboxSettings.ini</c> and <c>Admin.ini</c> move from "inside the server
 /// install" to <c>&lt;DataRoot&gt;/worlds/&lt;id&gt;/config/</c> so a SteamCMD
 /// validate, a server reinstall, or a <c>%LOCALAPPDATA%</c> wipe cannot
-/// destroy per-world tuning, admins, or bans. Migration is always copy —
-/// never move or delete — so the user can verify the new location before
+/// destroy per-world tuning, admins, or bans. Migration is always copy -
+/// never move or delete - so the user can verify the new location before
 /// retiring the old one via Reset Managed Data.
 /// </summary>
 public enum WorldIdentityMigrationAction
@@ -14,10 +14,10 @@ public enum WorldIdentityMigrationAction
     /// <summary>Nothing to do: no legacy file or target already current.</summary>
     None,
 
-    /// <summary>Legacy file exists, target does not — copy legacy → target.</summary>
+    /// <summary>Legacy file exists, target does not - copy legacy -> target.</summary>
     CopyLegacyToTarget,
 
-    /// <summary>Both exist; target is the same or newer — leave alone (idempotent).</summary>
+    /// <summary>Both exist; target is the same or newer - leave alone (idempotent).</summary>
     AlreadyMigrated,
 }
 
@@ -62,7 +62,7 @@ public static class WorldIdentityMigration
         }
 
         // Both exist. If target is at least as new as legacy, treat as already
-        // migrated — the user (or a previous run) has been editing the new file.
+        // migrated - the user (or a previous run) has been editing the new file.
         // We do not overwrite a newer in-DataRoot file with a stale legacy one.
         if (legacyWriteTime is not null && targetWriteTime is not null &&
             targetWriteTime >= legacyWriteTime)
